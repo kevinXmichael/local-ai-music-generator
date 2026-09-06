@@ -11,6 +11,7 @@ from pathlib import Path
 from rich.console import Console
 
 from local_ai_music_generator.audio_io import load_audio, mix_tracks, save_audio
+from local_ai_music_generator.cleanup import cleanup_caches, format_bytes
 from local_ai_music_generator.config import GenerateRequest, Paths
 from local_ai_music_generator.engines.mock_engine import MockLyricCoverEngine
 from local_ai_music_generator.engines.separator import get_separator
@@ -61,6 +62,14 @@ def resolve_engine(name: str):
 
 def generate(paths: Paths, request: GenerateRequest) -> GenerateResult:
     paths.ensure()
+    # Auto-cleanup: only unused duplicates / stale .work — never deletes needed models
+    cleaned = cleanup_caches(paths.root, keep_work=2, delete_unused_hf=True, dry_run=False)
+    if cleaned.freed_bytes > 0:
+        console.print(
+            f"[dim]cleanup[/dim] freigegeben {format_bytes(cleaned.freed_bytes)} "
+            f"({len(cleaned.removed)} Altlasten)"
+        )
+
     output_name = sanitize_output_name(request.output_name)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     work_dir = paths.work / f"{output_name}-{stamp}"

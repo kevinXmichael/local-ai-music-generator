@@ -40,15 +40,17 @@
 
 Weitere Keys kannst du schon eintragen — unbekannte Felder bleiben in `settings.extra` für spätere Features erhalten.
 
-### Output-Format: warum m4a?
+### Output-Format: m4a / mp3 / wav
 
 | Format | Wann |
 |--------|------|
-| **m4a (Default)** | AAC 256k — gute Qualität, kleine Datei, einfach abspielbar |
+| **m4a (Default)** | AAC 256k — gute Qualität, kleine Datei |
 | `mp3` | Maximal kompatibel (320k) |
-| `wav` | Verlustfrei / Weiterverarbeitung in DAWs |
+| `wav` | Verlustfrei / DAW |
 
-Zwischenprodukte unter `.work/` bleiben als WAV (Arbeitsqualität). Nur das fertige Cover in `MUSIC_OUTPUT` nutzt `output_format`.
+**Intern** rechnen Demucs/YingMusic immer mit WAV (rohes PCM) — so funktionieren Fast alle Audio-KI-Modelle. Dein Input (`.m4a`/`.mp3`) wird dafür nur **zwischengeparkt**, das fertige Cover schreibt wieder `.m4a`/`.mp3` nach `MUSIC_OUTPUT/`. Du musst nichts manuell in WAV speichern.
+
+Zwischenprodukte unter `.work/` bleiben als WAV (Arbeitsqualität).
 
 ### Beispiel
 
@@ -101,11 +103,11 @@ Nur Pipeline-Test ohne Lyric-Change:
 
 ## Cleanup / Duplikate
 
-Inference nutzt nur `ASLP-lab/YingMusic-Singer`. Der Cache `YingMusic-Singer-Plus` ist überflüssig.
+Läuft **automatisch** bei jedem `./scripts/generate.sh` (nur ungenutzte HF-Caches + alte `.work`, behält benötigte Models und die 2 neuesten Jobs).
+
+Manuell optional:
 
 ```bash
 ./scripts/generate.sh cleanup --dry-run
 ./scripts/generate.sh cleanup
 ```
-
-Löscht ungenutzte HF-Caches und alte `.work`-Jobs (behält die 2 neuesten).
