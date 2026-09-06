@@ -4,4 +4,18 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
-exec python -m local_ai_music_generator "$@"
+
+PYTHON="$ROOT/.venv/bin/python"
+if [[ ! -x "$PYTHON" ]]; then
+  echo "Kein .venv gefunden. Einmalig:" >&2
+  echo "  cd \"$ROOT\"" >&2
+  echo "  python3 -m venv .venv && .venv/bin/pip install -e ." >&2
+  exit 1
+fi
+
+if ! "$PYTHON" -c "import local_ai_music_generator" 2>/dev/null; then
+  echo "Paket fehlt im venv — installiere …" >&2
+  "$PYTHON" -m pip install -e .
+fi
+
+exec "$PYTHON" -m local_ai_music_generator "$@"
