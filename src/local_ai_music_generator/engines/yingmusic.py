@@ -241,8 +241,22 @@ class YingMusicCoverEngine:
         ]
         env = os.environ.copy()
         env.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
-        # Leave headroom so macOS UI stays alive (unified memory).
-        env.setdefault("PYTORCH_MPS_HIGH_WATERMARK_RATIO", "0.55")
+        # Never set MPS watermark ratios here — invalid values crash with
+        # "invalid low watermark ratio 1.4". Strip broken values from the parent env.
+        for key in ("PYTORCH_MPS_HIGH_WATERMARK_RATIO", "PYTORCH_MPS_LOW_WATERMARK_RATIO"):
+            val = env.get(key)
+            if val is None:
+                continue
+            try:
+                ratio = float(val)
+            except ValueError:
+                env.pop(key, None)
+                continue
+            if not 0.0 <= ratio <= 1.0:
+                env.pop(key, None)
+        # Prefer MPS; allow override via settings / env
+        if platform.system() == "Darwin":
+            env.setdefault("YINGMUSIC_DEVICE", "mps")
 
         def _nice() -> None:
             try:
