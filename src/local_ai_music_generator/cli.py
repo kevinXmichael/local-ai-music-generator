@@ -6,6 +6,7 @@ import typer
 from rich.console import Console
 
 from local_ai_music_generator import __version__
+from local_ai_music_generator.cleanup import cleanup_caches, format_bytes
 from local_ai_music_generator.config import GenerateRequest, Paths, find_project_root
 from local_ai_music_generator.discover import InputDiscoveryError, discover_jobs
 from local_ai_music_generator.engines.yingmusic import YingMusicCoverEngine, setup_yingmusic
@@ -67,21 +68,57 @@ def setup_yingmusic_cmd(
     path = setup_yingmusic(target)
     console.print(
         f"[green]Ready:[/green] {path}\n"
-        "Weights laut YingMusic-README von Hugging Face laden "
-        "(ASLP-lab/YingMusic-Singer-Plus). GPU empfohlen."
+        "Weights: Hugging Face ASLP-lab/YingMusic-Singer (nicht Plus). "
+        "GPU empfohlen; auf Mac MPS/CPU. Danach: ./scripts/generate.sh\n"
+        "Aufräumen doppelter Caches: ./scripts/generate.sh cleanup"
+    )
+
+
+@app.command("cleanup")
+def cleanup_cmd(
+    keep_work: int = typer.Option(2, "--keep-work", help="Anzahl neuester .work-Jobs behalten"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Nur anzeigen, nichts löschen"),
+    no_hf: bool = typer.Option(
+        False,
+        "--no-hf",
+        help="Hugging-Face-Duplikate nicht löschen",
+    ),
+) -> None:
+    """Doppelte Model-Caches + alte .work-Ordner aufräumen."""
+    root = find_project_root()
+    result = cleanup_caches(
+        root,
+        keep_work=keep_work,
+        delete_unused_hf=not no_hf,
+        dry_run=dry_run,
+    )
+    for note in result.notes:
+        console.print(f"[dim]{note}[/dim]")
+    for item in result.kept:
+        console.print(f"[green]keep[/green] {item}")
+    for item in result.removed:
+        console.print(f"[yellow]removed[/yellow] {item}")
+    console.print(
+        f"{'Würde freigeben' if dry_run else 'Freigegeben'}: "
+        f"[bold]{format_bytes(result.freed_bytes)}[/bold]"
     )
 
 
 @app.command("doctor")
 def doctor_cmd() -> None:
-    """Check ffmpeg, Demucs, YingMusic, Ordner."""
+    """Check ffmpeg, Demucs, YingMusic, Ordner, Cache-Größen."""
     import shutil
+
+    from local_ai_music_generator.cleanup import HF_HUB, KEEP_HF_REPOS, UNUSED_HF_REPOS, _dir_size
 
     root = find_project_root()
     paths = Paths(root=root)
     paths.ensure()
     console.print(f"project root: {root}")
     console.print(f"ffmpeg: {'yes' if shutil.which('ffmpeg') else 'MISSING'}")
+    console.print(
+        f"espeak-ng: {'yes' if shutil.which('espeak-ng') else 'MISSING (brew install espeak-ng)'}"
+    )
     try:
         import demucs  # noqa: F401
 
@@ -96,6 +133,13 @@ def doctor_cmd() -> None:
     console.print(f"yingmusic: {'yes' if ym.available() else 'no (run setup-yingmusic)'}")
     console.print(f"MUSIC_INPUT: {paths.music_input}")
     console.print(f"MUSIC_OUTPUT: {paths.music_output}")
+    for name in [*KEEP_HF_REPOS, *UNUSED_HF_REPOS]:
+        path = HF_HUB / name
+        if path.exists():
+            tag = "keep" if name in KEEP_HF_REPOS else "unused→cleanup"
+            console.print(f"HF {tag}: {name} ({format_bytes(_dir_size(path))})")
+    work_size = _dir_size(paths.work) if paths.work.exists() else 0
+    console.print(f".work: {format_bytes(work_size)}")
     try:
         jobs = discover_jobs(paths.music_input)
         console.print(f"erkannte Jobs: {len(jobs)}")

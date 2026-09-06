@@ -87,22 +87,19 @@ class YingMusicCoverEngine:
         ref_text = original_lyrics.phrase_pipe
         target_text = target_lyrics.phrase_pipe
 
-        # Prefer full-mix path with YingMusic's own separation+mix when available.
-        if source_mix and source_mix.is_file():
-            melody = str(source_mix.resolve())
-            ref = melody
-            extra = ["--separate_vocals", "--mix_accompaniment"]
-            notes = "YingMusic lyric edit with built-in vocal separation + mix"
-        else:
-            melody_path = work_dir / "melody_vocals.wav"
-            ref_path = work_dir / "timbre_ref.wav"
-            mono = to_mono(vocals)
-            save_audio(melody_path, mono, sample_rate)
-            save_audio(ref_path, mono[: min(len(mono), sample_rate * 12)], sample_rate)
-            melody = str(melody_path)
-            ref = str(ref_path)
-            extra = []
-            notes = "YingMusic lyric edit on pre-separated vocals"
+        # Always feed WAV — torchaudio/soundfile cannot read m4a/mp3 reliably.
+        # Prefer Demucs stems from the pipeline (already separated) over YingMusic's
+        # built-in separator on the raw mix.
+        del source_mix  # kept for API compat; demucs path is preferred
+        melody_path = work_dir / "melody_vocals.wav"
+        ref_path = work_dir / "timbre_ref.wav"
+        mono = to_mono(vocals)
+        save_audio(melody_path, mono, sample_rate)
+        save_audio(ref_path, mono[: min(len(mono), sample_rate * 12)], sample_rate)
+        melody = str(melody_path.resolve())
+        ref = str(ref_path.resolve())
+        extra: list[str] = []
+        notes = "YingMusic lyric edit on Demucs/WAV vocals (no m4a)"
 
         cmd = [
             *self.infer_entrypoint(project_root),
@@ -115,7 +112,7 @@ class YingMusicCoverEngine:
             "--target_text",
             target_text,
             "--output",
-            str(out),
+            str(out.resolve()),
             *extra,
         ]
         env = os.environ.copy()
@@ -144,7 +141,7 @@ class YingMusicCoverEngine:
             sample_rate=sr,
             engine=self.name,
             notes=notes,
-            already_mixed=bool(source_mix and source_mix.is_file()),
+            already_mixed=False,
         )
 
 

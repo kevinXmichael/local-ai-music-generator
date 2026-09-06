@@ -41,6 +41,13 @@ Ohne YingMusic ändern sich die Lyrics **nicht**. Einmalig:
 
 Mock nur zum Pipeline-Test: `./scripts/generate.sh --engine mock`
 
+Aufräumen (alte `.work` + ungenutzter HF-Cache *YingMusic-Singer-Plus* ~12 GB):
+
+```bash
+./scripts/generate.sh cleanup --dry-run
+./scripts/generate.sh cleanup
+```
+
 ## Docs
 
 - [Usage](docs/usage.md) — Drop-in, `settings.json`, Demucs, Formate

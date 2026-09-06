@@ -98,3 +98,14 @@ Nur Pipeline-Test ohne Lyric-Change:
 ```
 
 **Hinweis Mac:** YingMusic ist für NVIDIA gebaut; auf Apple Silicon läuft es über MPS/CPU und kann bei langen Songs **sehr langsam** sein. Kurze Clips zuerst testen.
+
+## Cleanup / Duplikate
+
+Inference nutzt nur `ASLP-lab/YingMusic-Singer`. Der Cache `YingMusic-Singer-Plus` ist überflüssig.
+
+```bash
+./scripts/generate.sh cleanup --dry-run
+./scripts/generate.sh cleanup
+```
+
+Löscht ungenutzte HF-Caches und alte `.work`-Jobs (behält die 2 neuesten).
