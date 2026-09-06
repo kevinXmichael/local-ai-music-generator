@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+dist/
+build/
+.venv/
+venv/
+.env
+.coverage
+htmlcov/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Models & vendor engines (downloaded locally)
+models/**
+!models/.gitkeep
+vendor/
+.cache/
+
+# User media — keep folders, ignore heavy/copyrighted binaries
+MUSIC_INPUT/**/*.m4a
+MUSIC_INPUT/**/*.mp3
+MUSIC_INPUT/**/*.wav
+MUSIC_INPUT/**/*.flac
+MUSIC_INPUT/**/*.ogg
+MUSIC_INPUT/**/*.aac
+!MUSIC_INPUT/**/.gitkeep
+!MUSIC_INPUT/samples/README.md
+
+MUSIC_OUTPUT/**
+!MUSIC_OUTPUT/.gitkeep
+
+# Temporary work dirs
+.work/
+tmp/
+*.log
