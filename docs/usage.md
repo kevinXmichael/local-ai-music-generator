@@ -36,6 +36,7 @@
 | `voice` | `female` | `female` \| `male` |
 | `output_name` | Audiodatei-Stem | freier Name |
 | `output_format` | `m4a` | `m4a` \| `mp3` \| `wav` |
+| `apply_voice_gender` | `false` | Pitch/Formant nachträglich — meist **aus** lassen (klingt sonst blechern) |
 
 Weitere Keys kannst du schon eintragen — unbekannte Felder bleiben in `settings.extra` für spätere Features erhalten.
 
@@ -78,10 +79,22 @@ pip install -e ".[separate]"
 python -m local_ai_music_generator doctor
 ```
 
-## Echtes Neu-Singen
+## Echtes Neu-Singen (Pflicht für neue Lyrics)
+
+Ohne YingMusic ändert sich der gesungene Text **nicht**. Der alte Mock-Fallback ist abgeschaltet.
 
 ```bash
-python -m local_ai_music_generator setup-yingmusic
-python -m local_ai_music_generator
-python -m local_ai_music_generator --engine mock
+# einmalig (Python 3.10 + Model-Download, mehrere GB)
+./scripts/generate.sh setup-yingmusic
+
+# danach normal
+./scripts/generate.sh
 ```
+
+Nur Pipeline-Test ohne Lyric-Change:
+
+```bash
+./scripts/generate.sh --engine mock
+```
+
+**Hinweis Mac:** YingMusic ist für NVIDIA gebaut; auf Apple Silicon läuft es über MPS/CPU und kann bei langen Songs **sehr langsam** sein. Kurze Clips zuerst testen.

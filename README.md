@@ -25,23 +25,21 @@ MUSIC_INPUT/hot-mess/
 
 ```bash
 cd ~/Code/kms/local-ai-music-generator
-source .venv/bin/activate
-python -m local_ai_music_generator
+./scripts/generate.sh
 ```
 
 → `MUSIC_OUTPUT/hot-gangster-cover.m4a` (Default: AAC 256k; alternativ `mp3` / `wav` in `settings.json`).
 
-## Setup
+## Echtes Neu-Singen
+
+Ohne YingMusic ändern sich die Lyrics **nicht**. Einmalig:
 
 ```bash
-python -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
-brew install ffmpeg
-# bessere Stem-Trennung:
-pip install -e ".[separate]"
-# echtes Lyric-Re-Singing:
-python -m local_ai_music_generator setup-yingmusic
+./scripts/generate.sh setup-yingmusic
+./scripts/generate.sh
 ```
+
+Mock nur zum Pipeline-Test: `./scripts/generate.sh --engine mock`
 
 ## Docs
 

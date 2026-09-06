@@ -8,11 +8,18 @@ from local_ai_music_generator.audio_io import to_mono
 from local_ai_music_generator.engines.base import SeparationResult
 
 
-class SimpleHpssSeparator:
-    """CPU-friendly harmonic/percussive split used when demucs is not installed.
+def _torch_device():
+    import torch
 
-    Not studio-quality — good enough for dry-runs and CI. Prefer demucs for real covers.
-    """
+    if torch.backends.mps.is_available():
+        return "mps"
+    if torch.cuda.is_available():
+        return "cuda"
+    return "cpu"
+
+
+class SimpleHpssSeparator:
+    """Rough fallback when demucs is not installed. Do not use for real covers."""
 
     name = "hpss"
 
@@ -21,8 +28,7 @@ class SimpleHpssSeparator:
 
         work_dir.mkdir(parents=True, exist_ok=True)
         mono = to_mono(audio)
-        harmonic, percussive = librosa.effects.hpss(mono)
-        # Treat harmonic as "vocals-ish", residual as accompaniment proxy
+        harmonic, _percussive = librosa.effects.hpss(mono)
         vocals = harmonic.astype(np.float32)
         instrumental = (mono - harmonic * 0.85).astype(np.float32)
         return SeparationResult(vocals=vocals, instrumental=instrumental, sample_rate=sample_rate)
@@ -47,26 +53,47 @@ class DemucsSeparator:
         work_dir.mkdir(parents=True, exist_ok=True)
         model = get_model(self.model)
         model.eval()
-        # demucs expects (batch, channels, time)
+        target_sr = int(getattr(model, "samplerate", 44100))
+
         wav = audio
         if wav.ndim == 1:
             wav = np.stack([wav, wav], axis=0)
         else:
-            wav = wav.T  # (ch, time)
+            wav = wav.T
         if wav.shape[0] == 1:
             wav = np.repeat(wav, 2, axis=0)
-        tensor = torch.tensor(wav).unsqueeze(0)
-        with torch.no_grad():
-            sources = apply_model(model, tensor, device="cpu", split=True, overlap=0.25)[0]
-        # order depends on model; htdemucs: drums, bass, other, vocals
+
+        if sample_rate != target_sr:
+            import librosa
+
+            resampled = [
+                librosa.resample(wav[c], orig_sr=sample_rate, target_sr=target_sr)
+                for c in range(wav.shape[0])
+            ]
+            wav = np.stack(resampled, axis=0)
+
+        device = _torch_device()
+        # demucs on MPS can be flaky; prefer mps then fall back to cpu
+        tensor = torch.tensor(wav, dtype=torch.float32).unsqueeze(0)
+        try:
+            with torch.no_grad():
+                sources = apply_model(
+                    model, tensor, device=device, split=True, overlap=0.25, progress=True
+                )[0]
+        except Exception:
+            with torch.no_grad():
+                sources = apply_model(
+                    model, tensor, device="cpu", split=True, overlap=0.25, progress=True
+                )[0]
+
         names = list(model.sources)
-        stems = {name: sources[i].cpu().numpy() for i, name in enumerate(names)}
-        vocals = stems["vocals"].T  # (time, ch)
+        stems = {name: sources[i].detach().cpu().numpy() for i, name in enumerate(names)}
+        vocals = stems["vocals"].T
         instrumental = sum(stems[n] for n in names if n != "vocals").T
         return SeparationResult(
             vocals=vocals.astype(np.float32),
             instrumental=instrumental.astype(np.float32),
-            sample_rate=model.samplerate if hasattr(model, "samplerate") else sample_rate,
+            sample_rate=target_sr,
         )
 
 

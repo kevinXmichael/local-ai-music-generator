@@ -23,6 +23,7 @@ class CoverResult:
     sample_rate: int
     engine: str
     notes: str = ""
+    already_mixed: bool = False
 
 
 class Separator(Protocol):

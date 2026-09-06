@@ -27,6 +27,7 @@ class JobSettings:
     voice: VoiceGender = "female"
     output_name: str | None = None
     output_format: OutputFormat = "m4a"
+    apply_voice_gender: bool = False
     extra: dict[str, Any] | None = None
 
 
@@ -51,6 +52,10 @@ class InputJob:
     @property
     def output_format(self) -> OutputFormat:
         return self.settings.output_format
+
+    @property
+    def apply_voice_gender(self) -> bool:
+        return self.settings.apply_voice_gender
 
 
 class InputDiscoveryError(ValueError):
@@ -155,13 +160,16 @@ def load_settings(
     except ValueError as exc:
         raise InputDiscoveryError(str(exc)) from exc
 
-    known = {"voice", "output_name", "output_format"}
+    apply_voice_gender = bool(raw.get("apply_voice_gender", False))
+
+    known = {"voice", "output_name", "output_format", "apply_voice_gender"}
     extra = {k: v for k, v in raw.items() if k not in known}
 
     return JobSettings(
         voice=voice,  # type: ignore[arg-type]
         output_name=output_name,
         output_format=output_format,
+        apply_voice_gender=apply_voice_gender,
         extra=extra or None,
     )
 

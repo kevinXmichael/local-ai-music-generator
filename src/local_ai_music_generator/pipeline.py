@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 import shutil
+import warnings
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -36,26 +37,26 @@ def sanitize_output_name(name: str) -> str:
     return name or "cover"
 
 
+class EngineNotReadyError(RuntimeError):
+    """Raised when auto/yingmusic is requested but YingMusic is missing."""
+
+
 def resolve_engine(name: str):
     if name == "mock":
         return MockLyricCoverEngine()
-    if name == "yingmusic":
+    if name in {"auto", "yingmusic"}:
         engine = YingMusicCoverEngine()
-        if not engine.available():
-            raise RuntimeError(
-                "Engine 'yingmusic' requested but not installed. "
-                "Run: python -m local_ai_music_generator setup-yingmusic"
-            )
-        return engine
-    # auto
-    ym = YingMusicCoverEngine()
-    if ym.available():
-        return ym
-    console.print(
-        "[yellow]YingMusic not found — falling back to mock engine. "
-        "Run setup-yingmusic for real lyric re-singing.[/yellow]"
-    )
-    return MockLyricCoverEngine()
+        if engine.available():
+            return engine
+        raise EngineNotReadyError(
+            "YingMusic ist nicht installiert — ohne das werden Lyrics NICHT neu gesungen "
+            "und der Sound bleibt schlecht (alter Mock-Pfad).\n\n"
+            "Einmalig einrichten:\n"
+            "  ./scripts/generate.sh setup-yingmusic\n\n"
+            "Nur Pipeline testen (ändert keine Lyrics):\n"
+            "  ./scripts/generate.sh --engine mock"
+        )
+    raise ValueError(f"Unknown engine: {name}")
 
 
 def generate(paths: Paths, request: GenerateRequest) -> GenerateResult:
@@ -65,50 +66,60 @@ def generate(paths: Paths, request: GenerateRequest) -> GenerateResult:
     work_dir = paths.work / f"{output_name}-{stamp}"
     work_dir.mkdir(parents=True, exist_ok=True)
 
-    console.print(f"[bold]Loading audio[/bold] {request.audio}")
-    audio, sr = load_audio(request.audio, sample_rate=request.sample_rate)
-    save_audio(work_dir / "input.wav", audio, sr)
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=FutureWarning)
+        warnings.filterwarnings("ignore", category=RuntimeWarning)
 
-    target = load_lyrics(request.lyrics)
-    if request.original_lyrics:
-        original = load_lyrics(request.original_lyrics)
-    else:
-        original = target
-        console.print(
-            "[yellow]No --original-lyrics given; using target lyrics as reference "
-            "(best results need the originally sung text).[/yellow]"
+        console.print(f"[bold]Loading audio[/bold] {request.audio}")
+        audio, sr = load_audio(request.audio, sample_rate=request.sample_rate)
+        save_audio(work_dir / "input.wav", audio, sr)
+
+        target = load_lyrics(request.lyrics)
+        if request.original_lyrics:
+            original = load_lyrics(request.original_lyrics)
+        else:
+            original = target
+            console.print(
+                "[yellow]Kein lyrics original — Target wird auch als Referenz genutzt.[/yellow]"
+            )
+
+        (work_dir / "target_lyrics.txt").write_text(target.text, encoding="utf-8")
+        (work_dir / "original_lyrics.txt").write_text(original.text, encoding="utf-8")
+
+        engine = resolve_engine(request.engine)
+        prefer_demucs = engine.name != "mock"
+        separator = get_separator(prefer_demucs=prefer_demucs)
+        console.print(f"[bold]Separating[/bold] with {separator.name}")
+        separation = separator.separate(audio, sr, work_dir / "separate")
+        save_audio(work_dir / "vocals_template.wav", separation.vocals, separation.sample_rate)
+        save_audio(
+            work_dir / "instrumental.wav",
+            separation.instrumental,
+            separation.sample_rate,
         )
 
-    (work_dir / "target_lyrics.txt").write_text(target.text, encoding="utf-8")
-    (work_dir / "original_lyrics.txt").write_text(original.text, encoding="utf-8")
+        console.print(f"[bold]Cover engine[/bold] {engine.name} · voice={request.voice}")
+        cover_kwargs = {
+            "vocals": separation.vocals,
+            "sample_rate": separation.sample_rate,
+            "original_lyrics": original,
+            "target_lyrics": target,
+            "voice": request.voice,
+            "work_dir": work_dir / "cover",
+            "apply_gender": request.apply_voice_gender,
+            "source_mix": request.audio if engine.name == "yingmusic" else None,
+        }
+        cover = engine.cover(**cover_kwargs)
+        save_audio(work_dir / "vocals_new.wav", cover.vocals, cover.sample_rate)
 
-    prefer_demucs = request.engine != "mock"
-    separator = get_separator(prefer_demucs=prefer_demucs)
-    console.print(f"[bold]Separating[/bold] with {separator.name}")
-    separation = separator.separate(audio, sr, work_dir / "separate")
-    save_audio(work_dir / "vocals_template.wav", separation.vocals, separation.sample_rate)
-    save_audio(
-        work_dir / "instrumental.wav",
-        separation.instrumental,
-        separation.sample_rate,
-    )
+        if cover.already_mixed:
+            mixed = cover.vocals
+        else:
+            mixed = mix_tracks(cover.vocals, separation.instrumental)
 
-    engine = resolve_engine(request.engine)
-    console.print(f"[bold]Cover engine[/bold] {engine.name} · voice={request.voice}")
-    cover = engine.cover(
-        vocals=separation.vocals,
-        sample_rate=separation.sample_rate,
-        original_lyrics=original,
-        target_lyrics=target,
-        voice=request.voice,
-        work_dir=work_dir / "cover",
-    )
-    save_audio(work_dir / "vocals_new.wav", cover.vocals, cover.sample_rate)
-
-    mixed = mix_tracks(cover.vocals, separation.instrumental)
-    ext = f".{request.output_format}"
-    out_path = paths.music_output / f"{output_name}{ext}"
-    saved = save_audio(out_path, mixed, cover.sample_rate)
+        ext = f".{request.output_format}"
+        out_path = paths.music_output / f"{output_name}{ext}"
+        saved = save_audio(out_path, mixed, cover.sample_rate)
 
     meta = {
         "output": str(saved),

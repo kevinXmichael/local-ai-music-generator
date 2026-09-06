@@ -9,7 +9,7 @@ from local_ai_music_generator import __version__
 from local_ai_music_generator.config import GenerateRequest, Paths, find_project_root
 from local_ai_music_generator.discover import InputDiscoveryError, discover_jobs
 from local_ai_music_generator.engines.yingmusic import YingMusicCoverEngine, setup_yingmusic
-from local_ai_music_generator.pipeline import generate, sanitize_output_name
+from local_ai_music_generator.pipeline import EngineNotReadyError, generate, sanitize_output_name
 
 app = typer.Typer(
     add_completion=False,
@@ -147,7 +147,12 @@ def _run_from_music_input(*, voice: str | None, engine: str) -> None:
             voice=chosen_voice,  # type: ignore[arg-type]
             engine=engine_norm,  # type: ignore[arg-type]
             output_format=job.output_format,
+            apply_voice_gender=job.apply_voice_gender,
             keep_work_files=True,
         )
-        result = generate(paths, req)
+        try:
+            result = generate(paths, req)
+        except EngineNotReadyError as exc:
+            console.print(f"[red]{exc}[/red]")
+            raise typer.Exit(code=1) from exc
         console.print(f"[bold green]Done[/bold green] → {result.output_path}")

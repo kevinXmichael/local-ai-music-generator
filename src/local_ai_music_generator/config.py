@@ -54,6 +54,7 @@ class GenerateRequest:
     original_lyrics: Path | None = None
     engine: EngineName = "auto"
     output_format: OutputFormat = DEFAULT_OUTPUT_FORMAT
+    apply_voice_gender: bool = False
     sample_rate: int = 44100
     keep_work_files: bool = False
 

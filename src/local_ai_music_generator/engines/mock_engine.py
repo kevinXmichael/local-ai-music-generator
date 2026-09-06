@@ -5,17 +5,13 @@ from pathlib import Path
 import numpy as np
 
 from local_ai_music_generator.config import VoiceGender
-from local_ai_music_generator.engines import CoverResult
+from local_ai_music_generator.engines.base import CoverResult
 from local_ai_music_generator.engines.voice_gender import apply_voice_gender
 from local_ai_music_generator.lyrics import LyricsDocument
 
 
 class MockLyricCoverEngine:
-    """Deterministic offline engine for tests/CI.
-
-    Does not invent new phonemes — it applies gender shaping and a tiny amplitude
-    envelope so the pipeline can be exercised end-to-end without GPU models.
-    """
+    """CI/smoke engine — does NOT re-sing lyrics. Use YingMusic for real covers."""
 
     name = "mock"
 
@@ -31,7 +27,10 @@ class MockLyricCoverEngine:
         target_lyrics: LyricsDocument,
         voice: VoiceGender,
         work_dir: Path,
+        apply_gender: bool = False,
+        source_mix: Path | None = None,
     ) -> CoverResult:
+        del source_mix  # unused in mock
         work_dir.mkdir(parents=True, exist_ok=True)
         meta = work_dir / "mock_cover_meta.txt"
         meta.write_text(
@@ -42,14 +41,16 @@ class MockLyricCoverEngine:
             + f"\n\nvoice={voice}\n",
             encoding="utf-8",
         )
-        shaped = apply_voice_gender(vocals, sample_rate, voice, strength=0.85)
-        # Soft gate so silence stays silence
-        env = np.clip(np.abs(shaped) * 8.0, 0.0, 1.0)
-        out = (shaped * (0.85 + 0.15 * env)).astype(np.float32)
+        out = np.asarray(vocals, dtype=np.float32)
+        if apply_gender:
+            out = apply_voice_gender(out, sample_rate, voice, strength=0.5)
         changed = original_lyrics.plain() != target_lyrics.plain()
-        note = "mock engine: gender-shaped template vocals (no neural lyric synthesis)."
+        note = (
+            "MOCK: keine echten neuen Lyrics. "
+            "Für echte Covers: ./scripts/generate.sh setup-yingmusic"
+        )
         if changed:
-            note += " Lyric text differs — install YingMusic for real re-singing."
+            note += " (Lyrics unterscheiden sich vom Original — Mock ignoriert das.)"
         return CoverResult(
             vocals=out,
             sample_rate=sample_rate,

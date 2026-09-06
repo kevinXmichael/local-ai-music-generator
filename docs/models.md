@@ -1,38 +1,41 @@
 # Models & optionale Extras
 
-## Stem-Trennung: Demucs (`.[separate]`)
+## Warum klang der Output bisher schlecht / alter Text?
 
-**Problem:** Ein fertiger Song ist eine Mischung. Zum Covern brauchen wir getrennt:
-Gesang (als Melodie-/Timbre-Vorlage) und Instrumental (zum Remixen).
+Ohne YingMusic lief nur ein **Mock**-Pfad: gleiche Vocals + Pitch-Shaping.
+Der ändert **keine** Lyrics und klingt oft blechern. Der stille Fallback ist abgeschaltet.
 
-**Ohne Extra-Install:** eingebaute HPSS-Näherung (schnell, ungenau).  
-**Mit Demucs:** deutlich bessere Trennung.
+## YingMusic (echte Lyric-Edits)
+
+```bash
+brew install python@3.10 espeak-ng
+./scripts/generate.sh setup-yingmusic
+./scripts/generate.sh
+```
+
+- Repo: `vendor/YingMusic-Singer-Plus` (eigene Python-3.10-venv)
+- Model: Hugging Face `ASLP-lab/YingMusic-Singer` (wird beim ersten Lauf geladen)
+- Mac: MPS/CPU — kurze Clips ok, volle Songs können **sehr lange** brauchen
+- Linux/NVIDIA: deutlich schneller
+
+## Stem-Trennung: Demucs
 
 ```bash
 pip install -e ".[separate]"
 ```
 
-Das installiert nur zusätzliche Python-Pakete (`demucs`, `torch`, …) in dein venv.
-Kein zweites Repo. Einmal ausführen, danach automatisch aktiv.
+Sauberere Vocals/Instrumental als HPSS. YingMusic kann Vocals auch selbst trennen
+(`--separate_vocals`), Demucs hilft zusätzlich im Pipeline-Pfad.
 
-Siehe auch [usage.md](usage.md#stem-trennung-demucs--was-heißt-das).
+## `settings.json`
 
-## YingMusic-Singer-Plus (echtes Lyric-Editing)
-
-Melody-preserving lyric editing: ein Wort oder ganzer Text, Melodie bleibt nahe am Original.
-
-```bash
-python -m local_ai_music_generator setup-yingmusic
+```json
+{
+  "voice": "female",
+  "output_name": "hot-gangster-cover",
+  "output_format": "m4a",
+  "apply_voice_gender": false
+}
 ```
 
-Klont [ASLP-lab/YingMusic-Singer-Plus](https://github.com/ASLP-lab/YingMusic-Singer-Plus) nach `vendor/`.
-Weights: https://huggingface.co/ASLP-lab/YingMusic-Singer-Plus — GPU empfohlen.
-
-```bash
-export YINGMUSIC_HOME=/pfad/zu/YingMusic-Singer-Plus   # optional
-python -m local_ai_music_generator --engine yingmusic
-```
-
-## Mock engine
-
-Kein Neural-Model. Für CI und „läuft die Pipeline?“. Formt nur Template-Vocals (Gender) — singt keine neuen Worte.
+`apply_voice_gender: true` formantiert nachträglich — meist aus lassen (klingt blechern).
