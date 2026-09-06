@@ -195,6 +195,7 @@ def _run_from_music_input(*, voice: str | None, engine: str) -> None:
             chunk_seconds=job.chunk_seconds,
             max_seconds=job.max_seconds,
             nfe_step=job.nfe_step,
+            mode=job.mode,
             keep_work_files=True,
         )
         try:

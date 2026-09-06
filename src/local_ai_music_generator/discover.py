@@ -6,7 +6,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from local_ai_music_generator.config import OutputFormat, VoiceGender, normalize_output_format
+from local_ai_music_generator.config import (
+    CoverMode,
+    OutputFormat,
+    VoiceGender,
+    normalize_output_format,
+)
 
 AUDIO_EXTS = {".mp3", ".m4a", ".wav", ".flac", ".ogg", ".aac", ".wma"}
 LYRIC_EXTS = {".txt", ".srt", ".lrc"}
@@ -31,6 +36,7 @@ class JobSettings:
     chunk_seconds: float = 20.0
     max_seconds: float | None = None
     nfe_step: int | None = None
+    mode: CoverMode = "auto"
     extra: dict[str, Any] | None = None
 
 
@@ -71,6 +77,10 @@ class InputJob:
     @property
     def nfe_step(self) -> int | None:
         return self.settings.nfe_step
+
+    @property
+    def mode(self) -> CoverMode:
+        return self.settings.mode
 
 
 class InputDiscoveryError(ValueError):
@@ -193,6 +203,11 @@ def load_settings(
     nfe_raw = raw.get("nfe_step")
     nfe_step = int(nfe_raw) if nfe_raw is not None else None
 
+    mode_raw = str(raw.get("mode", "auto")).strip().lower()
+    if mode_raw not in {"auto", "surgical", "full"}:
+        raise InputDiscoveryError("mode muss auto|surgical|full sein")
+    mode: CoverMode = mode_raw  # type: ignore[assignment]
+
     known = {
         "voice",
         "output_name",
@@ -201,6 +216,7 @@ def load_settings(
         "chunk_seconds",
         "max_seconds",
         "nfe_step",
+        "mode",
     }
     extra = {k: v for k, v in raw.items() if k not in known}
 
@@ -212,6 +228,7 @@ def load_settings(
         chunk_seconds=chunk_seconds,
         max_seconds=max_seconds,
         nfe_step=nfe_step,
+        mode=mode,
         extra=extra or None,
     )
 

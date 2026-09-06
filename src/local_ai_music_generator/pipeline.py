@@ -13,10 +13,13 @@ from rich.console import Console
 from local_ai_music_generator.audio_io import load_audio, mix_tracks, save_audio
 from local_ai_music_generator.cleanup import cleanup_caches, format_bytes
 from local_ai_music_generator.config import GenerateRequest, Paths
+from local_ai_music_generator.engines.base import CoverResult
 from local_ai_music_generator.engines.mock_engine import MockLyricCoverEngine
 from local_ai_music_generator.engines.separator import get_separator
 from local_ai_music_generator.engines.yingmusic import YingMusicCoverEngine
 from local_ai_music_generator.lyrics import load_lyrics
+from local_ai_music_generator.lyrics_diff import should_use_surgical
+from local_ai_music_generator.surgical import surgical_cover
 
 console = Console()
 
@@ -62,7 +65,6 @@ def resolve_engine(name: str):
 
 def generate(paths: Paths, request: GenerateRequest) -> GenerateResult:
     paths.ensure()
-    # Auto-cleanup: only unused duplicates / stale .work — never deletes needed models
     cleaned = cleanup_caches(paths.root, keep_work=2, delete_unused_hf=True, dry_run=False)
     if cleaned.freed_bytes > 0:
         console.print(
@@ -107,29 +109,61 @@ def generate(paths: Paths, request: GenerateRequest) -> GenerateResult:
             separation.sample_rate,
         )
 
-        console.print(f"[bold]Cover engine[/bold] {engine.name} · voice={request.voice}")
+        use_surgical = False
         if engine.name == "yingmusic":
-            dur = len(audio) / float(sr)
+            if request.mode == "surgical":
+                use_surgical = True
+            elif request.mode == "full":
+                use_surgical = False
+            else:
+                use_surgical = should_use_surgical(original, target)
+
+        if use_surgical and isinstance(engine, YingMusicCoverEngine):
             console.print(
-                f"[dim]Song ~{dur:.0f}s — YingMusic läuft in Chunks mit Live-Log. "
-                "Mac kann warm werden, UI sollte bedienbar bleiben.[/dim]"
+                "[bold]Mode surgical[/bold] — Originalstimme bleibt, "
+                "nur geänderte Wörter/Phrasen werden neu gesungen"
             )
-        cover_kwargs: dict = {
-            "vocals": separation.vocals,
-            "sample_rate": separation.sample_rate,
-            "original_lyrics": original,
-            "target_lyrics": target,
-            "voice": request.voice,
-            "work_dir": work_dir / "cover",
-            "apply_gender": request.apply_voice_gender,
-            "source_mix": None,
-        }
-        if engine.name == "yingmusic":
-            cover_kwargs["chunk_seconds"] = request.chunk_seconds
-            cover_kwargs["max_seconds"] = request.max_seconds
-            if request.nfe_step is not None:
-                cover_kwargs["nfe_step"] = request.nfe_step
-        cover = engine.cover(**cover_kwargs)
+            nfe = request.nfe_step if request.nfe_step is not None else 24
+            vocals_new, notes = surgical_cover(
+                engine=engine,
+                vocals=separation.vocals,
+                sample_rate=separation.sample_rate,
+                original_lyrics=original,
+                target_lyrics=target,
+                work_dir=work_dir / "surgical",
+                nfe_step=nfe,
+            )
+            cover = CoverResult(
+                vocals=vocals_new,
+                sample_rate=separation.sample_rate,
+                engine="yingmusic-surgical",
+                notes=notes,
+            )
+        else:
+            console.print(f"[bold]Cover engine[/bold] {engine.name} · voice={request.voice}")
+            if engine.name == "yingmusic":
+                dur = len(audio) / float(sr)
+                console.print(
+                    f"[dim]Song ~{dur:.0f}s — full/chunked resynthesis "
+                    "(Stimme wird neu generiert).[/dim]"
+                )
+            cover_kwargs: dict = {
+                "vocals": separation.vocals,
+                "sample_rate": separation.sample_rate,
+                "original_lyrics": original,
+                "target_lyrics": target,
+                "voice": request.voice,
+                "work_dir": work_dir / "cover",
+                "apply_gender": request.apply_voice_gender,
+                "source_mix": None,
+            }
+            if engine.name == "yingmusic":
+                cover_kwargs["chunk_seconds"] = request.chunk_seconds
+                cover_kwargs["max_seconds"] = request.max_seconds
+                if request.nfe_step is not None:
+                    cover_kwargs["nfe_step"] = request.nfe_step
+            cover = engine.cover(**cover_kwargs)
+
         save_audio(work_dir / "vocals_new.wav", cover.vocals, cover.sample_rate)
 
         if cover.already_mixed:
@@ -148,6 +182,7 @@ def generate(paths: Paths, request: GenerateRequest) -> GenerateResult:
         "original_lyrics": str(request.original_lyrics) if request.original_lyrics else None,
         "voice": request.voice,
         "output_format": request.output_format,
+        "mode": request.mode,
         "engine": cover.engine,
         "separator": separator.name,
         "notes": cover.notes,

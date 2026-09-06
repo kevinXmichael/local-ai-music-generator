@@ -37,9 +37,10 @@
 | `output_name` | Audiodatei-Stem | freier Name |
 | `output_format` | `m4a` | `m4a` \| `mp3` \| `wav` |
 | `apply_voice_gender` | `false` | Pitch/Formant nachträglich — meist **aus** |
-| `chunk_seconds` | `20` | YingMusic in kurzen Stücken (Mac friert sonst ein). `0` = alles auf einmal |
-| `max_seconds` | aus | Nur die ersten N Sekunden (schneller Test) |
-| `nfe_step` | `16` (Mac) / `32` | Qualität vs. Tempo |
+| `mode` | `auto` | `surgical` = nur geänderte Stellen (Originalstimme bleibt). `full` = alles neu singen |
+| `chunk_seconds` | `20` | nur bei `full` |
+| `max_seconds` | aus | Nur die ersten N Sekunden (Test) |
+| `nfe_step` | `24` surgical / `16` full Mac | Qualität vs. Tempo |
 
 Weitere Keys kannst du schon eintragen — unbekannte Felder bleiben in `settings.extra` für spätere Features erhalten.
 
@@ -102,11 +103,14 @@ Nur Pipeline-Test ohne Lyric-Change:
 ./scripts/generate.sh --engine mock
 ```
 
-**Hinweis Mac:** Volle Songs auf einmal frieren das System oft ein. Default ist deshalb **20s-Chunks** + niedrige Priorität + Live-Log. Erster Test:
+**Hinweis Mac / Qualität:** Für kleine Lyric-Edits (`hot mess` → `hot gangster`) immer
 
 ```json
-{ "max_seconds": 40, "chunk_seconds": 20, "nfe_step": 16 }
+{ "mode": "surgical" }
 ```
+
+Dann bleibt die Originalstimme, nur die geänderten Stellen werden neu gesungen.
+`mode: full` baut die komplette Stimme neu (klingt oft anders).
 
 ## Cleanup / Duplikate
 

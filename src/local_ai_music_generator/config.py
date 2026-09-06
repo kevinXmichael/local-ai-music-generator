@@ -7,6 +7,7 @@ from typing import Literal
 VoiceGender = Literal["male", "female"]
 EngineName = Literal["auto", "mock", "yingmusic"]
 OutputFormat = Literal["m4a", "mp3", "wav"]
+CoverMode = Literal["auto", "surgical", "full"]
 
 DEFAULT_OUTPUT_FORMAT: OutputFormat = "m4a"
 
@@ -58,6 +59,7 @@ class GenerateRequest:
     chunk_seconds: float = 20.0
     max_seconds: float | None = None
     nfe_step: int | None = None
+    mode: CoverMode = "auto"
     sample_rate: int = 44100
     keep_work_files: bool = False
 
