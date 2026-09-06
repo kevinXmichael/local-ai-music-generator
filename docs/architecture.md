@@ -1,5 +1,17 @@
 # Architecture
 
+## Drop-in flow
+
+```
+MUSIC_INPUT/<job>/
+  song.* + lyrics new.* + lyrics original.* + voice.txt?
+        │
+        ▼
+ discover_jobs()  →  pipeline.generate()  →  MUSIC_OUTPUT/<name>.wav
+```
+
+Kein Pflicht-Flags: `python -m local_ai_music_generator` reicht.
+
 ```
 audio + lyrics
      │
@@ -9,21 +21,21 @@ audio + lyrics
 └──────┬──────┘
        ▼
 ┌─────────────┐
-│  separate   │  demucs (optional) or HPSS fallback
+│  separate   │  demucs (optional extra) oder HPSS
 └──────┬──────┘
        │ vocals + instrumental
        ▼
 ┌─────────────┐
-│ lyric cover │  YingMusic (real) or mock (CI)
+│ lyric cover │  YingMusic (real) oder mock (CI)
 └──────┬──────┘
        │ new vocals
        ▼
 ┌─────────────┐
-│ voice gender│  pitch + formant shaping (male/female)
+│ voice gender│  pitch + formant (male/female)
 └──────┬──────┘
        ▼
 ┌─────────────┐
-│    mix      │  vocals + instrumental → MUSIC_OUTPUT
+│    mix      │  → MUSIC_OUTPUT
 └─────────────┘
 ```
 
@@ -31,19 +43,20 @@ audio + lyrics
 
 | Module | Role |
 |--------|------|
-| `cli.py` | Typer entrypoints (`generate`, `setup-yingmusic`, `doctor`) |
-| `pipeline.py` | Orchestrates a full job |
-| `lyrics.py` | Normalize txt/srt/lrc → phrases |
+| `discover.py` | Feste Dateinamen in `MUSIC_INPUT` finden |
+| `cli.py` | Default = `run` aus dem Drop-in-Ordner |
+| `pipeline.py` | Orchestriert einen Job |
+| `lyrics.py` | txt/srt/lrc normalisieren |
 | `audio_io.py` | Load/save/mix |
-| `engines/separator.py` | Stem separation |
-| `engines/yingmusic.py` | Subprocess wrapper around `infer.py` |
-| `engines/mock_engine.py` | Deterministic offline path |
-| `engines/voice_gender.py` | male/female control |
+| `engines/separator.py` | Stem-Trennung |
+| `engines/yingmusic.py` | Wrapper um `infer.py` |
+| `engines/mock_engine.py` | Offline/CI |
+| `engines/voice_gender.py` | male/female |
 
 ## Design goals
 
-1. **Script-first** — one command, named output file
-2. **Folder convention** — `MUSIC_INPUT` / `MUSIC_OUTPUT`
-3. **Free & local** — no paid API
-4. **Testable** — mock engine + synthetic audio in CI
-5. **Pluggable** — swap cover engines without rewriting the CLI
+1. Dateien reinlegen, ein Befehl — fertig
+2. `MUSIC_INPUT` / `MUSIC_OUTPUT` Konvention
+3. Kostenlos & lokal
+4. Mock-Engine für Tests/CI
+5. Engines austauschbar

@@ -1,83 +1,60 @@
 # Local AI Music Generator
 
-Kostenlos, lokal, in Python: nimm einen Song als **Melodie-/Timbre-Vorlage**, gib **angepasste Lyrics** (ein Wort oder ganzer Text), wähle **male/female**, und erzeuge einen Cover-Track.
+Kostenlos, lokal: Song als Vorlage + neue Lyrics → Cover in `MUSIC_OUTPUT/`.
 
-Typischer Flow (dein Beispiel):
+**Pfad:** `~/Code/kms/local-ai-music-generator`  
+**Repo:** https://github.com/kevinXmichael/local-ai-music-generator
 
-- Vorlage: *Hot Mess* Entrance Theme (`.m4a`)
-- Lyrics: `hot mess` → `hot gangster`
-- Output: `MUSIC_OUTPUT/hot-gangster-cover.wav`
+## So einfach geht’s
 
-## Quick start
+Dateien so benennen und in `MUSIC_INPUT/` (oder einen Unterordner) legen:
+
+```text
+MUSIC_INPUT/hot-mess/
+  song.m4a
+  lyrics new.txt
+  lyrics original.txt
+  voice.txt              # optional: female | male
+  output name.txt        # optional
+```
+
+Dann:
 
 ```bash
-cd local-ai-music-generator
+cd ~/Code/kms/local-ai-music-generator
+source .venv/bin/activate
+python -m local_ai_music_generator
+```
+
+→ `MUSIC_OUTPUT/hot-gangster-cover.wav` (bzw. Name aus `output name.txt` / Audiodatei).
+
+## Setup (einmal)
+
+```bash
+cd ~/Code/kms/local-ai-music-generator
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
-# empfohlen für bessere Stem-Trennung:
-# pip install -e ".[separate]"
-brew install ffmpeg   # oder apt install ffmpeg
+brew install ffmpeg   # falls nötig
 ```
 
-Audio + Lyrics nach `MUSIC_INPUT/` legen (Sample-Lyrics liegen unter `MUSIC_INPUT/samples/`).
+**Bessere Vocal/Instrumental-Trennung (empfohlen):**
 
 ```bash
-python -m local_ai_music_generator generate \
-  --audio MUSIC_INPUT/samples/hot_mess_theme.m4a \
-  --lyrics MUSIC_INPUT/samples/hot_mess_lyrics_hot_gangster.txt \
-  --original-lyrics MUSIC_INPUT/samples/hot_mess_lyrics_original.txt \
-  --voice female \
-  --output-name hot-gangster-cover
+pip install -e ".[separate]"
 ```
 
-Oder:
+Das ist nur Demucs+Torch im selben venv — Erklärung: [docs/usage.md](docs/usage.md#stem-trennung-demucs--was-heißt-das).
 
-```bash
-chmod +x scripts/generate.sh
-./scripts/generate.sh \
-  MUSIC_INPUT/samples/hot_mess_theme.m4a \
-  MUSIC_INPUT/samples/hot_mess_lyrics_hot_gangster.txt \
-  hot-gangster-cover \
-  female
-```
-
-Ausgabe: `MUSIC_OUTPUT/<output-name>.wav` (+ `.json` Meta).
-
-## Engines
-
-| Engine | Was sie tut | Wann |
-|--------|-------------|------|
-| `auto` (Default) | Nutzt YingMusic wenn vorhanden, sonst `mock` | Alltag |
-| `yingmusic` | Echte lyric-preserving Re-Singing (Melody behalten, Text ändern) | GPU empfohlen |
-| `mock` | Pipeline-Test ohne Neural-Model (Gender-Shaping der Template-Vocals) | CI / Smoke |
-
-Echte Covers (nahe am Original, nur Lyrics geändert):
+**Echtes Neu-Singen der Lyrics:**
 
 ```bash
 python -m local_ai_music_generator setup-yingmusic
-# danach Weights laut YingMusic-README von Hugging Face laden
-python -m local_ai_music_generator generate ... --engine yingmusic
+# Weights siehe docs/models.md
 ```
-
-YingMusic-Singer-Plus: [GitHub](https://github.com/ASLP-lab/YingMusic-Singer-Plus) · [Model](https://huggingface.co/ASLP-lab/YingMusic-Singer-Plus)
-
-## Ordner
-
-```
-MUSIC_INPUT/     # Songs + Lyrics rein
-MUSIC_OUTPUT/    # fertige Covers
-models/          # optionale lokale Weights
-.work/           # Zwischenprodukte (Stems, Meta)
-vendor/          # YingMusic-Checkout (nach setup)
-```
-
-## Voice
-
-`--voice female|male` formantiert/pitch-shifted die gesungenen Vocals (leichtgewichtig, offline). Mit YingMusic bleibt die Melodie der Vorlage; Gender ist ein zusätzlicher Shaping-Schritt.
 
 ## Docs
 
-- [Usage](docs/usage.md)
+- [Usage (Drop-in + Demucs erklärt)](docs/usage.md)
 - [Architecture](docs/architecture.md)
 - [Models](docs/models.md)
 
@@ -88,8 +65,6 @@ pytest -q
 ruff check src tests
 ```
 
-GitHub Actions: `.github/workflows/ci.yml` (Python 3.10 + 3.12).
+## Rechte
 
-## Hinweis zu Rechten
-
-Nur Material verwenden, das du nutzen darfst. Audio-Binaries werden **nicht** ins Repo committed (`.gitignore`). Sample-Lyrics dienen dem Workflow-Beispiel.
+Nur Material nutzen, das du nutzen darfst. Audio-Dateien werden nicht committed (`.gitignore`).

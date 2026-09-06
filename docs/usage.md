@@ -1,73 +1,94 @@
 # Usage
 
-## Prerequisites
+## Projektort
 
-- Python 3.10+
-- `ffmpeg` on `PATH`
-- Optional: NVIDIA GPU + CUDA for YingMusic
-- Optional: `pip install -e ".[separate]"` for Demucs stem separation
+Das Repo liegt unter:
 
-## Install
+```text
+~/Code/kms/local-ai-music-generator
+```
+
+## Super-einfacher Workflow
+
+1. Dateien in `MUSIC_INPUT/` (oder einen Unterordner) legen  
+2. Ein Befehl starten  
+3. Ergebnis liegt in `MUSIC_OUTPUT/`
 
 ```bash
-python -m venv .venv
+cd ~/Code/kms/local-ai-music-generator
+source .venv/bin/activate   # falls vorhanden
+python -m local_ai_music_generator
+```
+
+### Erwartete Dateinamen
+
+| Datei | Pflicht | Bedeutung |
+|-------|---------|-----------|
+| `song.m4a` / `song.mp3` / `audio.*` / `track.*` | ja | Vorlage-Song |
+| `lyrics new.txt` | ja | Neue Lyrics (auch `lyrics_new.txt`) |
+| `lyrics original.txt` | empfohlen | Original-Text wie auf dem Track |
+| `voice.txt` | nein | eine Zeile: `female` oder `male` (Default: female) |
+| `output name.txt` | nein | Ausgabe-Basename; sonst Name der Audio-Datei |
+
+Leerzeichen, `_` und `-` sind egal: `lyrics new`, `lyrics_new`, `lyrics-new` funktionieren alle.
+
+### Beispiel (Hot Mess → hot gangster)
+
+```text
+MUSIC_INPUT/hot-mess/
+  song.m4a
+  lyrics new.txt          # enthält „hot gangster“
+  lyrics original.txt     # enthält „hot mess“
+  voice.txt               # female
+  output name.txt         # hot-gangster-cover
+```
+
+```bash
+python -m local_ai_music_generator
+# → MUSIC_OUTPUT/hot-gangster-cover.wav
+```
+
+Mehrere Songs: einfach mehrere Unterordner unter `MUSIC_INPUT/` — der Befehl baut alle.
+
+## Stem-Trennung (Demucs) — was heißt das?
+
+Der Song wird intern in **Gesang (Vocals)** und **Rest/Instrumental** zerlegt.  
+Nur so kann die KI den Text neu singen und danach wieder mit dem Beat mischen.
+
+| Modus | Befehl | Qualität |
+|-------|--------|----------|
+| Standard (ohne Extra-Install) | schon dabei | grobe Trennung (HPSS) — reicht zum Testen |
+| **Besser (empfohlen)** | `pip install -e ".[separate]"` | **Demucs** — deutlich sauberere Vocals/Instrumental |
+
+`".[separate]"` ist nur die optionale Extra-Gruppe aus `pyproject.toml` (Demucs + Torch). Kein zweites Projekt — einmal im venv installieren:
+
+```bash
+cd ~/Code/kms/local-ai-music-generator
 source .venv/bin/activate
-pip install -e ".[dev]"
+pip install -e ".[separate]"
 ```
 
-## Generate a cover
-
-```bash
-python -m local_ai_music_generator generate \
-  --audio MUSIC_INPUT/samples/hot_mess_theme.m4a \
-  --lyrics MUSIC_INPUT/samples/hot_mess_lyrics_hot_gangster.txt \
-  --original-lyrics MUSIC_INPUT/samples/hot_mess_lyrics_original.txt \
-  --voice female \
-  --output-name hot-gangster-cover \
-  --engine auto
-```
-
-### Arguments
-
-| Flag | Description |
-|------|-------------|
-| `--audio` / `-a` | Template track (mp3, m4a, wav, flac, …) |
-| `--lyrics` / `-l` | **New** lyrics to sing |
-| `--original-lyrics` | Lyrics as on the recording (for edit alignment) |
-| `--voice` / `-v` | `female` or `male` |
-| `--output-name` / `-o` | Basename → `MUSIC_OUTPUT/<name>.wav` |
-| `--engine` / `-e` | `auto`, `yingmusic`, or `mock` |
-| `--keep-work` | Keep stems under `.work/` (default on) |
-
-### Shell helper
-
-```bash
-./scripts/generate.sh <audio> <lyrics> <output-name> [voice] [original-lyrics]
-```
-
-## Lyric formats
-
-- `.txt` — plain / section headers like `[Chorus]`
-- `.srt` — timed SRT **or** lyric sheets mistakenly named `.srt`
-- `.lrc` — timed LRC lines
-
-Section headers are ignored when building model phrase strings.
-
-## Only change one word
-
-Keep a copy of the original lyrics and edit the target file (or use a small script):
-
-```python
-from pathlib import Path
-from local_ai_music_generator.lyrics import apply_replacements, load_lyrics
-
-original = load_lyrics(Path("MUSIC_INPUT/samples/hot_mess_lyrics_original.txt"))
-edited = apply_replacements(original.text, {"hot mess": "hot gangster"})
-Path("MUSIC_INPUT/samples/hot_mess_lyrics_hot_gangster.txt").write_text(edited)
-```
-
-## Health check
+Danach nutzt `run` Demucs automatisch, wenn es importierbar ist. Check:
 
 ```bash
 python -m local_ai_music_generator doctor
+```
+
+## Echtes Neu-Singen (YingMusic)
+
+Ohne YingMusic läuft ein **mock**-Pfad (Pipeline/Test). Für echte Lyric-Covers:
+
+```bash
+python -m local_ai_music_generator setup-yingmusic
+# Weights laut docs/models.md laden
+python -m local_ai_music_generator          # engine=auto → yingmusic wenn da
+python -m local_ai_music_generator --engine mock   # erzwungen testen
+```
+
+## Optional: Voice override auf der CLI
+
+Nur wenn du `voice.txt` nicht anfassen willst:
+
+```bash
+python -m local_ai_music_generator --voice male
 ```
