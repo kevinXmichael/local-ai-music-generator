@@ -28,6 +28,9 @@ class JobSettings:
     output_name: str | None = None
     output_format: OutputFormat = "m4a"
     apply_voice_gender: bool = False
+    chunk_seconds: float = 20.0
+    max_seconds: float | None = None
+    nfe_step: int | None = None
     extra: dict[str, Any] | None = None
 
 
@@ -56,6 +59,18 @@ class InputJob:
     @property
     def apply_voice_gender(self) -> bool:
         return self.settings.apply_voice_gender
+
+    @property
+    def chunk_seconds(self) -> float:
+        return self.settings.chunk_seconds
+
+    @property
+    def max_seconds(self) -> float | None:
+        return self.settings.max_seconds
+
+    @property
+    def nfe_step(self) -> int | None:
+        return self.settings.nfe_step
 
 
 class InputDiscoveryError(ValueError):
@@ -162,7 +177,31 @@ def load_settings(
 
     apply_voice_gender = bool(raw.get("apply_voice_gender", False))
 
-    known = {"voice", "output_name", "output_format", "apply_voice_gender"}
+    chunk_seconds = float(raw.get("chunk_seconds", 20))
+    if chunk_seconds < 0:
+        raise InputDiscoveryError("chunk_seconds muss >= 0 sein (0 = ein Stück)")
+
+    max_seconds_raw = raw.get("max_seconds")
+    max_seconds: float | None
+    if max_seconds_raw is None or max_seconds_raw == "":
+        max_seconds = None
+    else:
+        max_seconds = float(max_seconds_raw)
+        if max_seconds <= 0:
+            max_seconds = None
+
+    nfe_raw = raw.get("nfe_step")
+    nfe_step = int(nfe_raw) if nfe_raw is not None else None
+
+    known = {
+        "voice",
+        "output_name",
+        "output_format",
+        "apply_voice_gender",
+        "chunk_seconds",
+        "max_seconds",
+        "nfe_step",
+    }
     extra = {k: v for k, v in raw.items() if k not in known}
 
     return JobSettings(
@@ -170,6 +209,9 @@ def load_settings(
         output_name=output_name,
         output_format=output_format,
         apply_voice_gender=apply_voice_gender,
+        chunk_seconds=chunk_seconds,
+        max_seconds=max_seconds,
+        nfe_step=nfe_step,
         extra=extra or None,
     )
 

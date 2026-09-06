@@ -192,6 +192,9 @@ def _run_from_music_input(*, voice: str | None, engine: str) -> None:
             engine=engine_norm,  # type: ignore[arg-type]
             output_format=job.output_format,
             apply_voice_gender=job.apply_voice_gender,
+            chunk_seconds=job.chunk_seconds,
+            max_seconds=job.max_seconds,
+            nfe_step=job.nfe_step,
             keep_work_files=True,
         )
         try:

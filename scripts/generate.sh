@@ -18,4 +18,12 @@ if ! "$PYTHON" -c "import local_ai_music_generator" 2>/dev/null; then
   "$PYTHON" -m pip install -e .
 fi
 
-exec "$PYTHON" -m local_ai_music_generator "$@"
+# Keep macOS responsive while heavy ML runs
+run() {
+  if command -v taskpolicy >/dev/null 2>&1; then
+    exec taskpolicy -c utility nice -n 15 "$PYTHON" -m local_ai_music_generator "$@"
+  fi
+  exec nice -n 15 "$PYTHON" -m local_ai_music_generator "$@"
+}
+
+run "$@"

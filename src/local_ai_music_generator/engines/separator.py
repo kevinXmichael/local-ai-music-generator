@@ -8,13 +8,18 @@ from local_ai_music_generator.audio_io import to_mono
 from local_ai_music_generator.engines.base import SeparationResult
 
 
-def _torch_device():
+def _torch_device() -> str:
+    import sys
+
     import torch
 
-    if torch.backends.mps.is_available():
-        return "mps"
+    # On macOS keep Demucs on CPU so MPS RAM stays free for YingMusic / UI.
+    if sys.platform == "darwin":
+        return "cpu"
     if torch.cuda.is_available():
         return "cuda"
+    if getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
+        return "mps"
     return "cpu"
 
 

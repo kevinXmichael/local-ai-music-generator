@@ -108,7 +108,13 @@ def generate(paths: Paths, request: GenerateRequest) -> GenerateResult:
         )
 
         console.print(f"[bold]Cover engine[/bold] {engine.name} · voice={request.voice}")
-        cover_kwargs = {
+        if engine.name == "yingmusic":
+            dur = len(audio) / float(sr)
+            console.print(
+                f"[dim]Song ~{dur:.0f}s — YingMusic läuft in Chunks mit Live-Log. "
+                "Mac kann warm werden, UI sollte bedienbar bleiben.[/dim]"
+            )
+        cover_kwargs: dict = {
             "vocals": separation.vocals,
             "sample_rate": separation.sample_rate,
             "original_lyrics": original,
@@ -116,8 +122,13 @@ def generate(paths: Paths, request: GenerateRequest) -> GenerateResult:
             "voice": request.voice,
             "work_dir": work_dir / "cover",
             "apply_gender": request.apply_voice_gender,
-            "source_mix": request.audio if engine.name == "yingmusic" else None,
+            "source_mix": None,
         }
+        if engine.name == "yingmusic":
+            cover_kwargs["chunk_seconds"] = request.chunk_seconds
+            cover_kwargs["max_seconds"] = request.max_seconds
+            if request.nfe_step is not None:
+                cover_kwargs["nfe_step"] = request.nfe_step
         cover = engine.cover(**cover_kwargs)
         save_audio(work_dir / "vocals_new.wav", cover.vocals, cover.sample_rate)
 

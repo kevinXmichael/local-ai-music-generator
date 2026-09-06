@@ -55,6 +55,9 @@ class GenerateRequest:
     engine: EngineName = "auto"
     output_format: OutputFormat = DEFAULT_OUTPUT_FORMAT
     apply_voice_gender: bool = False
+    chunk_seconds: float = 20.0
+    max_seconds: float | None = None
+    nfe_step: int | None = None
     sample_rate: int = 44100
     keep_work_files: bool = False
 

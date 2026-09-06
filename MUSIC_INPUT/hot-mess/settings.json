@@ -2,5 +2,7 @@
   "voice": "female",
   "output_name": "hot-gangster-cover",
   "output_format": "m4a",
-  "apply_voice_gender": false
+  "apply_voice_gender": false,
+  "chunk_seconds": 20,
+  "nfe_step": 16
 }
