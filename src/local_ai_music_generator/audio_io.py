@@ -60,7 +60,6 @@ def save_audio(path: Path, audio: np.ndarray, sample_rate: int) -> Path:
         sf.write(str(out), data, sample_rate)
         return out
 
-    # Encode via ffmpeg for mp3/m4a
     if shutil.which("ffmpeg") is None:
         fallback = path.with_suffix(".wav")
         sf.write(str(fallback), data, sample_rate)
@@ -69,11 +68,23 @@ def save_audio(path: Path, audio: np.ndarray, sample_rate: int) -> Path:
     with tempfile.TemporaryDirectory(prefix="laim-out-") as tmp:
         wav = Path(tmp) / "out.wav"
         sf.write(str(wav), data, sample_rate)
-        cmd = ["ffmpeg", "-y", "-i", str(wav), str(path)]
+        cmd = ["ffmpeg", "-y", "-i", str(wav), *_ffmpeg_encode_args(suffix), str(path)]
         proc = subprocess.run(cmd, capture_output=True, text=True)
         if proc.returncode != 0:
             raise RuntimeError(f"ffmpeg encode failed:\n{proc.stderr[-2000:]}")
     return path
+
+
+def _ffmpeg_encode_args(suffix: str) -> list[str]:
+    """High-quality encode flags for compressed formats."""
+    if suffix == ".m4a":
+        # AAC ~256k — deutlich besser als Default-MP3 bei kleiner Datei
+        return ["-c:a", "aac", "-b:a", "256k", "-movflags", "+faststart"]
+    if suffix == ".mp3":
+        return ["-c:a", "libmp3lame", "-b:a", "320k"]
+    if suffix in {".aac"}:
+        return ["-c:a", "aac", "-b:a", "256k"]
+    return []
 
 
 def to_mono(audio: np.ndarray) -> np.ndarray:

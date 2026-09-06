@@ -6,6 +6,21 @@ from typing import Literal
 
 VoiceGender = Literal["male", "female"]
 EngineName = Literal["auto", "mock", "yingmusic"]
+OutputFormat = Literal["m4a", "mp3", "wav"]
+
+DEFAULT_OUTPUT_FORMAT: OutputFormat = "m4a"
+
+
+def normalize_output_format(value: str | None) -> OutputFormat:
+    """m4a = default (AAC, gute Qualität, kleine Datei). Auch mp3|wav."""
+    raw = (value or DEFAULT_OUTPUT_FORMAT).strip().lower().lstrip(".")
+    if raw in {"m4a", "aac", "mp4"}:
+        return "m4a"
+    if raw == "mp3":
+        return "mp3"
+    if raw == "wav":
+        return "wav"
+    raise ValueError(f"output_format muss m4a|mp3|wav sein (gefunden: {value!r})")
 
 
 @dataclass
@@ -38,6 +53,7 @@ class GenerateRequest:
     voice: VoiceGender = "female"
     original_lyrics: Path | None = None
     engine: EngineName = "auto"
+    output_format: OutputFormat = DEFAULT_OUTPUT_FORMAT
     sample_rate: int = 44100
     keep_work_files: bool = False
 

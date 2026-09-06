@@ -106,15 +106,17 @@ def generate(paths: Paths, request: GenerateRequest) -> GenerateResult:
     save_audio(work_dir / "vocals_new.wav", cover.vocals, cover.sample_rate)
 
     mixed = mix_tracks(cover.vocals, separation.instrumental)
-    out_path = paths.music_output / f"{output_name}.wav"
-    save_audio(out_path, mixed, cover.sample_rate)
+    ext = f".{request.output_format}"
+    out_path = paths.music_output / f"{output_name}{ext}"
+    saved = save_audio(out_path, mixed, cover.sample_rate)
 
     meta = {
-        "output": str(out_path),
+        "output": str(saved),
         "audio": str(request.audio),
         "lyrics": str(request.lyrics),
         "original_lyrics": str(request.original_lyrics) if request.original_lyrics else None,
         "voice": request.voice,
+        "output_format": request.output_format,
         "engine": cover.engine,
         "separator": separator.name,
         "notes": cover.notes,
@@ -128,12 +130,12 @@ def generate(paths: Paths, request: GenerateRequest) -> GenerateResult:
     if request.keep_work_files:
         console.print(f"Work files kept at {work_dir}")
 
-    console.print(f"[green]Wrote[/green] {out_path}")
+    console.print(f"[green]Wrote[/green] {saved}")
     if cover.notes:
         console.print(f"[dim]{cover.notes}[/dim]")
 
     return GenerateResult(
-        output_path=out_path,
+        output_path=saved,
         engine=cover.engine,
         notes=cover.notes,
         work_dir=work_dir,

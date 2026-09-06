@@ -1,20 +1,33 @@
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
-from local_ai_music_generator.config import VoiceGender
+from local_ai_music_generator.config import OutputFormat, VoiceGender, normalize_output_format
 
 AUDIO_EXTS = {".mp3", ".m4a", ".wav", ".flac", ".ogg", ".aac", ".wma"}
 LYRIC_EXTS = {".txt", ".srt", ".lrc"}
 
 _SPACEY = re.compile(r"[\s_\-]+")
+_SETTINGS_NAMES = {"settings", "config", "job"}
 
 
 def _norm_stem(name: str) -> str:
     stem = Path(name).stem.lower().strip()
     return _SPACEY.sub(" ", stem)
+
+
+@dataclass(frozen=True)
+class JobSettings:
+    """Per-job settings from settings.json (extensible)."""
+
+    voice: VoiceGender = "female"
+    output_name: str | None = None
+    output_format: OutputFormat = "m4a"
+    extra: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -25,8 +38,19 @@ class InputJob:
     audio: Path
     lyrics_new: Path
     lyrics_original: Path | None
-    voice: VoiceGender
-    output_name: str
+    settings: JobSettings
+
+    @property
+    def voice(self) -> VoiceGender:
+        return self.settings.voice
+
+    @property
+    def output_name(self) -> str:
+        return self.settings.output_name or self.audio.stem or self.folder.name or "cover"
+
+    @property
+    def output_format(self) -> OutputFormat:
+        return self.settings.output_format
 
 
 class InputDiscoveryError(ValueError):
@@ -36,22 +60,13 @@ class InputDiscoveryError(ValueError):
 def discover_jobs(music_input: Path) -> list[InputJob]:
     """Find jobs from fixed filenames — no CLI flags needed.
 
-    Layout A — files directly in MUSIC_INPUT::
+    Layout::
 
-        MUSIC_INPUT/
-          song.m4a              # or audio.* / track.* / any single audio file
+        MUSIC_INPUT/hot-mess/
+          song.m4a
           lyrics new.txt
-          lyrics original.txt   # optional but recommended
-          voice.txt             # optional: male|female (default female)
-
-    Layout B — one subfolder per song::
-
-        MUSIC_INPUT/
-          hot-mess/
-            song.m4a
-            lyrics new.txt
-            lyrics original.txt
-            voice.txt
+          lyrics original.txt
+          settings.json     # voice, output_name, output_format, …
     """
     music_input = music_input.resolve()
     if not music_input.is_dir():
@@ -59,7 +74,6 @@ def discover_jobs(music_input: Path) -> list[InputJob]:
 
     jobs: list[InputJob] = []
 
-    # Prefer explicit job subfolders (ignore samples/ docs / hidden)
     subdirs = [
         p
         for p in sorted(music_input.iterdir())
@@ -69,7 +83,6 @@ def discover_jobs(music_input: Path) -> list[InputJob]:
         if _looks_like_job(folder):
             jobs.append(_job_from_folder(folder, output_fallback=folder.name))
 
-    # Root-level job if files sit directly in MUSIC_INPUT
     if _looks_like_job(music_input):
         jobs.append(_job_from_folder(music_input, output_fallback="cover"))
 
@@ -79,7 +92,7 @@ def discover_jobs(music_input: Path) -> list[InputJob]:
             "  song.m4a  (oder audio.*/track.*)\n"
             "  lyrics new.txt\n"
             "  lyrics original.txt  (empfohlen)\n"
-            "  voice.txt            (optional: female|male)\n"
+            "  settings.json        (optional: voice, output_name, output_format)\n"
             "Oder dasselbe in einem Unterordner, z.B. MUSIC_INPUT/mein-song/"
         )
     return jobs
@@ -98,16 +111,68 @@ def _job_from_folder(folder: Path, *, output_fallback: str) -> InputJob:
     audio = _find_audio(folder)
     lyrics_new = _find_lyrics_new(folder)
     lyrics_original = _find_lyrics_original(folder)
-    voice = _read_voice(folder)
-    output_name = _read_output_name(folder) or audio.stem or output_fallback
+    settings = load_settings(folder, output_fallback=output_fallback, audio_stem=audio.stem)
     return InputJob(
         folder=folder,
         audio=audio,
         lyrics_new=lyrics_new,
         lyrics_original=lyrics_original,
-        voice=voice,
-        output_name=output_name,
+        settings=settings,
     )
+
+
+def load_settings(
+    folder: Path,
+    *,
+    output_fallback: str,
+    audio_stem: str,
+) -> JobSettings:
+    path = _find_settings_file(folder)
+    raw: dict[str, Any] = {}
+    if path is not None:
+        try:
+            loaded = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise InputDiscoveryError(f"Ungültiges JSON in {path}: {exc}") from exc
+        if not isinstance(loaded, dict):
+            raise InputDiscoveryError(f"{path.name} muss ein JSON-Objekt sein")
+        raw = loaded
+
+    voice = str(raw.get("voice", "female")).strip().lower()
+    if voice not in {"male", "female"}:
+        raise InputDiscoveryError(
+            f"settings.json voice muss 'male' oder 'female' sein (gefunden: {voice!r})"
+        )
+
+    output_name = raw.get("output_name")
+    if output_name is not None:
+        output_name = str(output_name).strip() or None
+    if not output_name:
+        output_name = audio_stem or output_fallback
+
+    try:
+        output_format = normalize_output_format(raw.get("output_format", "m4a"))
+    except ValueError as exc:
+        raise InputDiscoveryError(str(exc)) from exc
+
+    known = {"voice", "output_name", "output_format"}
+    extra = {k: v for k, v in raw.items() if k not in known}
+
+    return JobSettings(
+        voice=voice,  # type: ignore[arg-type]
+        output_name=output_name,
+        output_format=output_format,
+        extra=extra or None,
+    )
+
+
+def _find_settings_file(folder: Path) -> Path | None:
+    for path in _iter_files(folder):
+        if path.suffix.lower() != ".json":
+            continue
+        if _norm_stem(path.name) in _SETTINGS_NAMES:
+            return path
+    return None
 
 
 def _iter_files(folder: Path) -> list[Path]:
@@ -180,28 +245,3 @@ def _find_lyrics_original(folder: Path) -> Path | None:
         },
         LYRIC_EXTS,
     )
-
-
-def _read_voice(folder: Path) -> VoiceGender:
-    path = _find_by_aliases(folder, {"voice", "gender", "stimme"}, {".txt", ".cfg", ".ini"})
-    if not path:
-        return "female"
-    raw = path.read_text(encoding="utf-8").strip().splitlines()
-    value = (raw[0] if raw else "").strip().lower()
-    if value not in {"male", "female"}:
-        raise InputDiscoveryError(
-            f"{path.name} muss 'male' oder 'female' enthalten (gefunden: {value!r})"
-        )
-    return value  # type: ignore[return-value]
-
-
-def _read_output_name(folder: Path) -> str | None:
-    path = _find_by_aliases(
-        folder,
-        {"output name", "output", "name", "titel", "title"},
-        {".txt"},
-    )
-    if not path:
-        return None
-    lines = [ln.strip() for ln in path.read_text(encoding="utf-8").splitlines() if ln.strip()]
-    return lines[0] if lines else None

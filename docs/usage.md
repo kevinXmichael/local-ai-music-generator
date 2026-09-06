@@ -2,93 +2,86 @@
 
 ## Projektort
 
-Das Repo liegt unter:
-
 ```text
 ~/Code/kms/local-ai-music-generator
 ```
 
-## Super-einfacher Workflow
+## Drop-in Workflow
 
-1. Dateien in `MUSIC_INPUT/` (oder einen Unterordner) legen  
-2. Ein Befehl starten  
-3. Ergebnis liegt in `MUSIC_OUTPUT/`
+1. Dateien in `MUSIC_INPUT/<job>/` legen  
+2. `python -m local_ai_music_generator`  
+3. Cover landet in `MUSIC_OUTPUT/`
 
-```bash
-cd ~/Code/kms/local-ai-music-generator
-source .venv/bin/activate   # falls vorhanden
-python -m local_ai_music_generator
-```
-
-### Erwartete Dateinamen
+### Dateien
 
 | Datei | Pflicht | Bedeutung |
 |-------|---------|-----------|
-| `song.m4a` / `song.mp3` / `audio.*` / `track.*` | ja | Vorlage-Song |
-| `lyrics new.txt` | ja | Neue Lyrics (auch `lyrics_new.txt`) |
-| `lyrics original.txt` | empfohlen | Original-Text wie auf dem Track |
-| `voice.txt` | nein | eine Zeile: `female` oder `male` (Default: female) |
-| `output name.txt` | nein | Ausgabe-Basename; sonst Name der Audio-Datei |
+| `song.m4a` / `audio.*` / `track.*` | ja | Vorlage |
+| `lyrics new.txt` | ja | Neue Lyrics |
+| `lyrics original.txt` | empfohlen | Original-Text |
+| `settings.json` | nein | Voice, Output-Name, Format, spätere Optionen |
 
-Leerzeichen, `_` und `-` sind egal: `lyrics new`, `lyrics_new`, `lyrics-new` funktionieren alle.
+### `settings.json`
 
-### Beispiel (Hot Mess → hot gangster)
+```json
+{
+  "voice": "female",
+  "output_name": "hot-gangster-cover",
+  "output_format": "m4a"
+}
+```
+
+| Key | Default | Werte |
+|-----|---------|--------|
+| `voice` | `female` | `female` \| `male` |
+| `output_name` | Audiodatei-Stem | freier Name |
+| `output_format` | `m4a` | `m4a` \| `mp3` \| `wav` |
+
+Weitere Keys kannst du schon eintragen — unbekannte Felder bleiben in `settings.extra` für spätere Features erhalten.
+
+### Output-Format: warum m4a?
+
+| Format | Wann |
+|--------|------|
+| **m4a (Default)** | AAC 256k — gute Qualität, kleine Datei, einfach abspielbar |
+| `mp3` | Maximal kompatibel (320k) |
+| `wav` | Verlustfrei / Weiterverarbeitung in DAWs |
+
+Zwischenprodukte unter `.work/` bleiben als WAV (Arbeitsqualität). Nur das fertige Cover in `MUSIC_OUTPUT` nutzt `output_format`.
+
+### Beispiel
 
 ```text
 MUSIC_INPUT/hot-mess/
   song.m4a
-  lyrics new.txt          # enthält „hot gangster“
-  lyrics original.txt     # enthält „hot mess“
-  voice.txt               # female
-  output name.txt         # hot-gangster-cover
+  lyrics new.txt
+  lyrics original.txt
+  settings.json
 ```
 
 ```bash
 python -m local_ai_music_generator
-# → MUSIC_OUTPUT/hot-gangster-cover.wav
+# → MUSIC_OUTPUT/hot-gangster-cover.m4a
 ```
 
-Mehrere Songs: einfach mehrere Unterordner unter `MUSIC_INPUT/` — der Befehl baut alle.
+## Stem-Trennung (Demucs)
 
-## Stem-Trennung (Demucs) — was heißt das?
-
-Der Song wird intern in **Gesang (Vocals)** und **Rest/Instrumental** zerlegt.  
-Nur so kann die KI den Text neu singen und danach wieder mit dem Beat mischen.
+Der Song wird in **Gesang** und **Instrumental** zerlegt.
 
 | Modus | Befehl | Qualität |
 |-------|--------|----------|
-| Standard (ohne Extra-Install) | schon dabei | grobe Trennung (HPSS) — reicht zum Testen |
-| **Besser (empfohlen)** | `pip install -e ".[separate]"` | **Demucs** — deutlich sauberere Vocals/Instrumental |
-
-`".[separate]"` ist nur die optionale Extra-Gruppe aus `pyproject.toml` (Demucs + Torch). Kein zweites Projekt — einmal im venv installieren:
+| Standard | schon dabei | HPSS (Test) |
+| Besser | `pip install -e ".[separate]"` | Demucs |
 
 ```bash
-cd ~/Code/kms/local-ai-music-generator
-source .venv/bin/activate
 pip install -e ".[separate]"
-```
-
-Danach nutzt `run` Demucs automatisch, wenn es importierbar ist. Check:
-
-```bash
 python -m local_ai_music_generator doctor
 ```
 
-## Echtes Neu-Singen (YingMusic)
-
-Ohne YingMusic läuft ein **mock**-Pfad (Pipeline/Test). Für echte Lyric-Covers:
+## Echtes Neu-Singen
 
 ```bash
 python -m local_ai_music_generator setup-yingmusic
-# Weights laut docs/models.md laden
-python -m local_ai_music_generator          # engine=auto → yingmusic wenn da
-python -m local_ai_music_generator --engine mock   # erzwungen testen
-```
-
-## Optional: Voice override auf der CLI
-
-Nur wenn du `voice.txt` nicht anfassen willst:
-
-```bash
-python -m local_ai_music_generator --voice male
+python -m local_ai_music_generator
+python -m local_ai_music_generator --engine mock
 ```

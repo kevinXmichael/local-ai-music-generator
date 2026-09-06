@@ -27,7 +27,7 @@ def _root(
         None,
         "--voice",
         "-v",
-        help="Override: male|female (sonst voice.txt oder female)",
+        help="Override: male|female (sonst settings.json)",
     ),
     engine: str = typer.Option(
         "auto",
@@ -100,7 +100,11 @@ def doctor_cmd() -> None:
         jobs = discover_jobs(paths.music_input)
         console.print(f"erkannte Jobs: {len(jobs)}")
         for job in jobs:
-            console.print(f"  - {job.folder.name}: {job.audio.name} → {job.output_name}")
+            name = sanitize_output_name(job.output_name)
+            console.print(
+                f"  - {job.folder.name}: {job.audio.name} → "
+                f"{name}.{job.output_format} (voice={job.voice})"
+            )
     except InputDiscoveryError as exc:
         console.print(f"[yellow]noch keine Inputs:[/yellow] {exc}")
 
@@ -128,19 +132,21 @@ def _run_from_music_input(*, voice: str | None, engine: str) -> None:
 
     for job in jobs:
         chosen_voice = voice_override or job.voice
+        out_base = sanitize_output_name(job.output_name)
         console.print(
             f"[bold]Job[/bold] {job.folder.name}: "
             f"{job.audio.name} + {job.lyrics_new.name} → "
-            f"MUSIC_OUTPUT/{sanitize_output_name(job.output_name)}.wav "
+            f"MUSIC_OUTPUT/{out_base}.{job.output_format} "
             f"(voice={chosen_voice})"
         )
         req = GenerateRequest(
             audio=job.audio,
             lyrics=job.lyrics_new,
             original_lyrics=job.lyrics_original,
-            output_name=sanitize_output_name(job.output_name),
+            output_name=out_base,
             voice=chosen_voice,  # type: ignore[arg-type]
             engine=engine_norm,  # type: ignore[arg-type]
+            output_format=job.output_format,
             keep_work_files=True,
         )
         result = generate(paths, req)

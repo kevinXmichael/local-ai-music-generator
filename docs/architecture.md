@@ -4,13 +4,13 @@
 
 ```
 MUSIC_INPUT/<job>/
-  song.* + lyrics new.* + lyrics original.* + voice.txt?
+  song.* + lyrics new.* + lyrics original.* + settings.json?
         │
         ▼
- discover_jobs()  →  pipeline.generate()  →  MUSIC_OUTPUT/<name>.wav
+ discover_jobs()  →  pipeline.generate()  →  MUSIC_OUTPUT/<name>.<m4a|mp3|wav>
 ```
 
-Kein Pflicht-Flags: `python -m local_ai_music_generator` reicht.
+`settings.json` steuert u.a. `voice`, `output_name`, `output_format` (Default `m4a`).
 
 ```
 audio + lyrics
@@ -43,7 +43,7 @@ audio + lyrics
 
 | Module | Role |
 |--------|------|
-| `discover.py` | Feste Dateinamen in `MUSIC_INPUT` finden |
+| `discover.py` | Feste Dateinamen + `settings.json` in `MUSIC_INPUT` |
 | `cli.py` | Default = `run` aus dem Drop-in-Ordner |
 | `pipeline.py` | Orchestriert einen Job |
 | `lyrics.py` | txt/srt/lrc normalisieren |

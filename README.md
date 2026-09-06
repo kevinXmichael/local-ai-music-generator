@@ -5,20 +5,23 @@ Kostenlos, lokal: Song als Vorlage + neue Lyrics → Cover in `MUSIC_OUTPUT/`.
 **Pfad:** `~/Code/kms/local-ai-music-generator`  
 **Repo:** https://github.com/kevinXmichael/local-ai-music-generator
 
-## So einfach geht’s
-
-Dateien so benennen und in `MUSIC_INPUT/` (oder einen Unterordner) legen:
+## So einfach
 
 ```text
 MUSIC_INPUT/hot-mess/
   song.m4a
   lyrics new.txt
   lyrics original.txt
-  voice.txt              # optional: female | male
-  output name.txt        # optional
+  settings.json
 ```
 
-Dann:
+```json
+{
+  "voice": "female",
+  "output_name": "hot-gangster-cover",
+  "output_format": "m4a"
+}
+```
 
 ```bash
 cd ~/Code/kms/local-ai-music-generator
@@ -26,45 +29,29 @@ source .venv/bin/activate
 python -m local_ai_music_generator
 ```
 
-→ `MUSIC_OUTPUT/hot-gangster-cover.wav` (bzw. Name aus `output name.txt` / Audiodatei).
+→ `MUSIC_OUTPUT/hot-gangster-cover.m4a` (Default: AAC 256k; alternativ `mp3` / `wav` in `settings.json`).
 
-## Setup (einmal)
+## Setup
 
 ```bash
-cd ~/Code/kms/local-ai-music-generator
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
-brew install ffmpeg   # falls nötig
-```
-
-**Bessere Vocal/Instrumental-Trennung (empfohlen):**
-
-```bash
+brew install ffmpeg
+# bessere Stem-Trennung:
 pip install -e ".[separate]"
-```
-
-Das ist nur Demucs+Torch im selben venv — Erklärung: [docs/usage.md](docs/usage.md#stem-trennung-demucs--was-heißt-das).
-
-**Echtes Neu-Singen der Lyrics:**
-
-```bash
+# echtes Lyric-Re-Singing:
 python -m local_ai_music_generator setup-yingmusic
-# Weights siehe docs/models.md
 ```
 
 ## Docs
 
-- [Usage (Drop-in + Demucs erklärt)](docs/usage.md)
+- [Usage](docs/usage.md) — Drop-in, `settings.json`, Demucs, Formate
 - [Architecture](docs/architecture.md)
 - [Models](docs/models.md)
 
-## Tests & CI
+## Tests
 
 ```bash
 pytest -q
 ruff check src tests
 ```
-
-## Rechte
-
-Nur Material nutzen, das du nutzen darfst. Audio-Dateien werden nicht committed (`.gitignore`).

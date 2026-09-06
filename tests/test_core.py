@@ -114,12 +114,50 @@ def test_end_to_end_generate(project: Paths, tmp_path: Path) -> None:
             output_name="hot-gangster-demo",
             voice="female",
             engine="mock",
+            output_format="wav",
             keep_work_files=True,
         ),
     )
     assert result.output_path.is_file()
+    assert result.output_path.suffix == ".wav"
     assert result.engine == "mock"
     data, out_sr = sf.read(str(result.output_path))
     assert out_sr > 0
     assert to_mono(np.asarray(data)).shape[0] > 0
     assert (project.music_output / "hot-gangster-demo.json").is_file()
+
+
+def test_end_to_end_m4a_output(project: Paths) -> None:
+    sr = 22050
+    t = np.linspace(0, 0.4, int(sr * 0.4), endpoint=False)
+    audio = (0.2 * np.sin(2 * np.pi * 440 * t)).astype(np.float32)
+    audio_path = project.music_input / "short.wav"
+    save_audio(audio_path, audio, sr)
+    lyrics = project.music_input / "lyrics.txt"
+    lyrics.write_text("hello\n", encoding="utf-8")
+
+    result = generate(
+        project,
+        GenerateRequest(
+            audio=audio_path,
+            lyrics=lyrics,
+            output_name="short-m4a",
+            engine="mock",
+            output_format="m4a",
+            keep_work_files=False,
+        ),
+    )
+    assert result.output_path.suffix == ".m4a"
+    assert result.output_path.is_file()
+    assert result.output_path.stat().st_size > 500
+
+
+def test_normalize_output_format() -> None:
+    from local_ai_music_generator.config import normalize_output_format
+
+    assert normalize_output_format("m4a") == "m4a"
+    assert normalize_output_format("AAC") == "m4a"
+    assert normalize_output_format(".mp3") == "mp3"
+    assert normalize_output_format("wav") == "wav"
+    with pytest.raises(ValueError):
+        normalize_output_format("flac")
