@@ -354,6 +354,16 @@ def surgical_cover(
         piece = sung[sung_i0:sung_i1]
         slot = s1 - s0
         piece = _fit_length(piece, slot)
+        # Timbre glue: pull YingMusic insert toward original singer (RVC-lite)
+        from local_ai_music_generator.polish import match_spectral_envelope
+
+        piece = match_spectral_envelope(
+            piece,
+            mono[s0:s1],
+            sample_rate=sample_rate,
+            strength=0.8,
+        )
+        piece = _fit_length(piece, slot)
         piece = _match_rms(piece, mono[s0:s1])
 
         fade = min(int(0.09 * sample_rate), slot // 3, len(piece) // 3)

@@ -24,6 +24,10 @@ def test_discover_with_settings_json(tmp_path: Path) -> None:
                 "voice": "male",
                 "output_name": "hot-gangster-cover",
                 "output_format": "mp3",
+                "polish": True,
+                "vocal_gain": 1.1,
+                "reverb_mix": "auto",
+                "demucs_model": "htdemucs_ft",
                 "future_knob": 42,
             }
         ),
@@ -39,6 +43,10 @@ def test_discover_with_settings_json(tmp_path: Path) -> None:
     assert job.voice == "male"
     assert job.output_name == "hot-gangster-cover"
     assert job.output_format == "mp3"
+    assert job.polish is True
+    assert job.vocal_gain == 1.1
+    assert job.reverb_mix is None
+    assert job.demucs_model == "htdemucs_ft"
     assert job.settings.extra == {"future_knob": 42}
 
 

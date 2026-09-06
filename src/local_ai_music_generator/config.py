@@ -60,6 +60,11 @@ class GenerateRequest:
     max_seconds: float | None = None
     nfe_step: int | None = None
     mode: CoverMode = "auto"
+    polish: bool = True
+    vocal_gain: float = 1.06
+    instrumental_gain: float = 0.9
+    reverb_mix: float | None = None  # None = auto from original wetness
+    demucs_model: str = "htdemucs_ft"
     sample_rate: int = 44100
     keep_work_files: bool = False
 

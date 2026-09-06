@@ -19,6 +19,7 @@ from local_ai_music_generator.engines.separator import get_separator
 from local_ai_music_generator.engines.yingmusic import YingMusicCoverEngine
 from local_ai_music_generator.lyrics import load_lyrics
 from local_ai_music_generator.lyrics_diff import should_use_surgical
+from local_ai_music_generator.polish import polish_vocals, studio_mix
 from local_ai_music_generator.surgical import surgical_cover
 
 console = Console()
@@ -99,8 +100,14 @@ def generate(paths: Paths, request: GenerateRequest) -> GenerateResult:
 
         engine = resolve_engine(request.engine)
         prefer_demucs = engine.name != "mock"
-        separator = get_separator(prefer_demucs=prefer_demucs)
-        console.print(f"[bold]Separating[/bold] with {separator.name}")
+        separator = get_separator(
+            prefer_demucs=prefer_demucs,
+            demucs_model=request.demucs_model,
+        )
+        console.print(
+            f"[bold]Separating[/bold] with {separator.name}"
+            + (f" ({getattr(separator, 'model', '')})" if prefer_demucs else "")
+        )
         separation = separator.separate(audio, sr, work_dir / "separate")
         save_audio(work_dir / "vocals_template.wav", separation.vocals, separation.sample_rate)
         save_audio(
@@ -123,7 +130,7 @@ def generate(paths: Paths, request: GenerateRequest) -> GenerateResult:
                 "[bold]Mode surgical[/bold] — Originalstimme bleibt, "
                 "nur geänderte Wörter/Phrasen werden neu gesungen"
             )
-            nfe = request.nfe_step if request.nfe_step is not None else 24
+            nfe = request.nfe_step if request.nfe_step is not None else 28
             vocals_new, notes = surgical_cover(
                 engine=engine,
                 vocals=separation.vocals,
@@ -164,17 +171,41 @@ def generate(paths: Paths, request: GenerateRequest) -> GenerateResult:
                     cover_kwargs["nfe_step"] = request.nfe_step
             cover = engine.cover(**cover_kwargs)
 
+        vocals_out = cover.vocals
+        polish_note = ""
+        if request.polish and engine.name != "mock":
+            console.print(
+                "[bold]Studio polish[/bold] — Timbre-Glue, Kompression, "
+                "Presence, Reverb, Cover-Mix (lokal)"
+            )
+            vocals_out = polish_vocals(
+                vocals_out,
+                sample_rate=cover.sample_rate,
+                reference=separation.vocals,
+                reverb_mix=request.reverb_mix,
+            )
+            polish_note = " + studio polish"
+            save_audio(work_dir / "vocals_polished.wav", vocals_out, cover.sample_rate)
+
         save_audio(work_dir / "vocals_new.wav", cover.vocals, cover.sample_rate)
 
         if cover.already_mixed:
-            mixed = cover.vocals
+            mixed = vocals_out
+        elif request.polish and engine.name != "mock":
+            mixed = studio_mix(
+                vocals_out,
+                separation.instrumental,
+                vocal_gain=request.vocal_gain,
+                instrumental_gain=request.instrumental_gain,
+            )
         else:
-            mixed = mix_tracks(cover.vocals, separation.instrumental)
+            mixed = mix_tracks(vocals_out, separation.instrumental)
 
         ext = f".{request.output_format}"
         out_path = paths.music_output / f"{output_name}{ext}"
         saved = save_audio(out_path, mixed, cover.sample_rate)
 
+    notes = f"{cover.notes}{polish_note}".strip()
     meta = {
         "output": str(saved),
         "audio": str(request.audio),
@@ -183,9 +214,11 @@ def generate(paths: Paths, request: GenerateRequest) -> GenerateResult:
         "voice": request.voice,
         "output_format": request.output_format,
         "mode": request.mode,
+        "polish": request.polish,
         "engine": cover.engine,
         "separator": separator.name,
-        "notes": cover.notes,
+        "demucs_model": getattr(separator, "model", None),
+        "notes": notes,
         "created_utc": stamp,
     }
     (work_dir / "meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
@@ -197,13 +230,13 @@ def generate(paths: Paths, request: GenerateRequest) -> GenerateResult:
         console.print(f"Work files kept at {work_dir}")
 
     console.print(f"[green]Wrote[/green] {saved}")
-    if cover.notes:
-        console.print(f"[dim]{cover.notes}[/dim]")
+    if notes:
+        console.print(f"[dim]{notes}[/dim]")
 
     return GenerateResult(
         output_path=saved,
         engine=cover.engine,
-        notes=cover.notes,
+        notes=notes,
         work_dir=work_dir,
     )
 

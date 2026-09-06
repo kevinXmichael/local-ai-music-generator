@@ -9,7 +9,7 @@
 ## Drop-in Workflow
 
 1. Dateien in `MUSIC_INPUT/<job>/` legen  
-2. `python -m local_ai_music_generator`  
+2. `python -m local_ai_music_generator` bzw. `./scripts/generate.sh`  
 3. Cover landet in `MUSIC_OUTPUT/`
 
 ### Dateien
@@ -19,7 +19,7 @@
 | `song.m4a` / `audio.*` / `track.*` | ja | Vorlage |
 | `lyrics new.txt` | ja | Neue Lyrics |
 | `lyrics original.txt` | empfohlen | Original-Text |
-| `settings.json` | nein | Voice, Output-Name, Format, spätere Optionen |
+| `settings.json` | nein | Voice, Mode, Polish, Formate |
 
 ### `settings.json`
 
@@ -27,7 +27,14 @@
 {
   "voice": "female",
   "output_name": "hot-gangster-cover",
-  "output_format": "m4a"
+  "output_format": "m4a",
+  "mode": "surgical",
+  "polish": true,
+  "vocal_gain": 1.08,
+  "instrumental_gain": 0.9,
+  "reverb_mix": "auto",
+  "demucs_model": "htdemucs_ft",
+  "nfe_step": 28
 }
 ```
 
@@ -37,12 +44,25 @@
 | `output_name` | Audiodatei-Stem | freier Name |
 | `output_format` | `m4a` | `m4a` \| `mp3` \| `wav` |
 | `apply_voice_gender` | `false` | Pitch/Formant nachträglich — meist **aus** |
-| `mode` | `auto` | `surgical` = nur geänderte Stellen (Originalstimme bleibt). `full` = alles neu singen |
+| `mode` | `auto` | `surgical` = nur geänderte Stellen (Originalstimme). `full` = alles neu |
+| `polish` | `true` | Studio-Finish: Timbre-Glue, Kompression, Presence, Reverb, Cover-Mix |
+| `vocal_gain` | `1.06` | Lautstärke Gesang im Mix |
+| `instrumental_gain` | `0.9` | Lautstärke Instrumental |
+| `reverb_mix` | `auto` | `auto` oder `0`–`0.45` (Nassanteil) |
+| `demucs_model` | `htdemucs_ft` | Demucs-Modell (`htdemucs` Fallback) |
 | `chunk_seconds` | `20` | nur bei `full` |
 | `max_seconds` | aus | Nur die ersten N Sekunden (Test) |
-| `nfe_step` | `24` surgical / `16` full Mac | Qualität vs. Tempo |
+| `nfe_step` | `28` surgical / `16` full Mac | Qualität vs. Tempo |
 
-Weitere Keys kannst du schon eintragen — unbekannte Felder bleiben in `settings.extra` für spätere Features erhalten.
+### Pipeline: beste aus beiden Welten (lokal)
+
+1. **Demucs** — saubere Stems (`htdemucs_ft`)  
+2. **Surgical YingMusic** — nur geänderte Wörter neu singen, Rest = Originalstimme  
+3. **Timbre-Glue** — spektrale Hüllkurve der Inserts an Originalstimme  
+4. **Studio polish** — Kompression, Presence-EQ, leichtes Plate-Reverb  
+5. **Cover-Mix** — Gesang/Instrumental-Balance + Soft-Limiter (wie AICoverGen-Stil)
+
+Kein Cloud, kein RVC-Training nötig — alles automatisiert in einem Lauf.
 
 ### Output-Format: m4a / mp3 / wav
 
@@ -52,9 +72,7 @@ Weitere Keys kannst du schon eintragen — unbekannte Felder bleiben in `setting
 | `mp3` | Maximal kompatibel (320k) |
 | `wav` | Verlustfrei / DAW |
 
-**Intern** rechnen Demucs/YingMusic immer mit WAV (rohes PCM) — so funktionieren Fast alle Audio-KI-Modelle. Dein Input (`.m4a`/`.mp3`) wird dafür nur **zwischengeparkt**, das fertige Cover schreibt wieder `.m4a`/`.mp3` nach `MUSIC_OUTPUT/`. Du musst nichts manuell in WAV speichern.
-
-Zwischenprodukte unter `.work/` bleiben als WAV (Arbeitsqualität).
+**Intern** rechnen Demucs/YingMusic immer mit WAV. Input `.m4a`/`.mp3` wird nur zwischengeparkt; Output wieder komprimiert nach `MUSIC_OUTPUT/`.
 
 ### Beispiel
 
@@ -67,18 +85,16 @@ MUSIC_INPUT/hot-mess/
 ```
 
 ```bash
-python -m local_ai_music_generator
+./scripts/generate.sh
 # → MUSIC_OUTPUT/hot-gangster-cover.m4a
 ```
 
 ## Stem-Trennung (Demucs)
 
-Der Song wird in **Gesang** und **Instrumental** zerlegt.
-
 | Modus | Befehl | Qualität |
 |-------|--------|----------|
 | Standard | schon dabei | HPSS (Test) |
-| Besser | `pip install -e ".[separate]"` | Demucs |
+| Besser | `pip install -e ".[separate]"` | Demucs `htdemucs_ft` |
 
 ```bash
 pip install -e ".[separate]"
@@ -87,13 +103,10 @@ python -m local_ai_music_generator doctor
 
 ## Echtes Neu-Singen (Pflicht für neue Lyrics)
 
-Ohne YingMusic ändert sich der gesungene Text **nicht**. Der alte Mock-Fallback ist abgeschaltet.
+Ohne YingMusic ändert sich der gesungene Text **nicht**.
 
 ```bash
-# einmalig (Python 3.10 + Model-Download, mehrere GB)
 ./scripts/generate.sh setup-yingmusic
-
-# danach normal
 ./scripts/generate.sh
 ```
 
@@ -103,20 +116,17 @@ Nur Pipeline-Test ohne Lyric-Change:
 ./scripts/generate.sh --engine mock
 ```
 
-**Hinweis Mac / Qualität:** Für kleine Lyric-Edits (`hot mess` → `hot gangster`) immer
+## Surgical extras
 
-```json
-{ "mode": "surgical" }
+```bash
+pip install -e ".[surgical]"
 ```
 
-Dann bleibt die Originalstimme, nur die geänderten Stellen werden neu gesungen.
-`mode: full` baut die komplette Stimme neu (klingt oft anders).
+Braucht `faster-whisper` für die Zeitstellen der geänderten Phrasen.
 
-## Cleanup / Duplikate
+## Cleanup
 
-Läuft **automatisch** bei jedem `./scripts/generate.sh` (nur ungenutzte HF-Caches + alte `.work`, behält benötigte Models und die 2 neuesten Jobs).
-
-Manuell optional:
+Bei jedem Generate laufen Cache-Aufräumungen. Manuell:
 
 ```bash
 ./scripts/generate.sh cleanup --dry-run

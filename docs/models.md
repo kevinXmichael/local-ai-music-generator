@@ -24,8 +24,19 @@ brew install python@3.10 espeak-ng
 pip install -e ".[separate]"
 ```
 
-Sauberere Vocals/Instrumental als HPSS. YingMusic kann Vocals auch selbst trennen
-(`--separate_vocals`), Demucs hilft zusätzlich im Pipeline-Pfad.
+Default-Modell: `htdemucs_ft` (fein abgestimmt). Fallback: `htdemucs`.
+YingMusic kann Vocals auch selbst trennen (`--separate_vocals`); Demucs bleibt der Pipeline-Standard.
+
+## Studio polish (ohne RVC)
+
+Nach Surgical/Full läuft lokal automatisch:
+
+- spektrales Timbre-Matching (Inserts → Originalstimme)
+- Soft-Kompressor + Presence
+- leichtes Plate-Reverb (`reverb_mix: auto`)
+- Cover-Mix mit Soft-Limiter
+
+Abschalten: `"polish": false` in `settings.json`.
 
 ## `settings.json`
 
@@ -34,6 +45,8 @@ Sauberere Vocals/Instrumental als HPSS. YingMusic kann Vocals auch selbst trenne
   "voice": "female",
   "output_name": "hot-gangster-cover",
   "output_format": "m4a",
+  "mode": "surgical",
+  "polish": true,
   "apply_voice_gender": false
 }
 ```

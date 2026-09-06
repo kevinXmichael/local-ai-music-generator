@@ -4,5 +4,10 @@
   "output_format": "m4a",
   "apply_voice_gender": false,
   "mode": "surgical",
-  "nfe_step": 24
+  "polish": true,
+  "vocal_gain": 1.08,
+  "instrumental_gain": 0.9,
+  "reverb_mix": "auto",
+  "demucs_model": "htdemucs_ft",
+  "nfe_step": 28
 }

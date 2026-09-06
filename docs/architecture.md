@@ -10,8 +10,6 @@ MUSIC_INPUT/<job>/
  discover_jobs()  →  pipeline.generate()  →  MUSIC_OUTPUT/<name>.<m4a|mp3|wav>
 ```
 
-`settings.json` steuert u.a. `voice`, `output_name`, `output_format` (Default `m4a`).
-
 ```
 audio + lyrics
      │
@@ -21,21 +19,21 @@ audio + lyrics
 └──────┬──────┘
        ▼
 ┌─────────────┐
-│  separate   │  demucs (optional extra) oder HPSS
+│  separate   │  demucs htdemucs_ft (oder HPSS)
 └──────┬──────┘
        │ vocals + instrumental
        ▼
-┌─────────────┐
-│ lyric cover │  YingMusic (real) oder mock (CI)
-└──────┬──────┘
-       │ new vocals
+┌─────────────────────┐
+│ surgical | full     │  YingMusic lyric edit
+│ (core splices)      │  + per-splice timbre glue
+└──────┬──────────────┘
        ▼
 ┌─────────────┐
-│ voice gender│  pitch + formant (male/female)
+│   polish    │  spectral glue, compress, presence, reverb
 └──────┬──────┘
        ▼
 ┌─────────────┐
-│    mix      │  → MUSIC_OUTPUT
+│ studio mix  │  vocal/inst balance + soft limit → MUSIC_OUTPUT
 └─────────────┘
 ```
 
@@ -43,20 +41,22 @@ audio + lyrics
 
 | Module | Role |
 |--------|------|
-| `discover.py` | Feste Dateinamen + `settings.json` in `MUSIC_INPUT` |
-| `cli.py` | Default = `run` aus dem Drop-in-Ordner |
+| `discover.py` | Drop-in Dateien + `settings.json` |
+| `cli.py` | Default = `run` |
 | `pipeline.py` | Orchestriert einen Job |
-| `lyrics.py` | txt/srt/lrc normalisieren |
+| `surgical.py` | Nur geänderte Kernwörter ersetzen |
+| `polish.py` | Cover-ähnliches Finish (lokal, ohne RVC) |
+| `lyrics.py` / `lyrics_diff.py` | Lyrics + Diff |
 | `audio_io.py` | Load/save/mix |
-| `engines/separator.py` | Stem-Trennung |
-| `engines/yingmusic.py` | Wrapper um `infer.py` |
+| `engines/separator.py` | Demucs / HPSS |
+| `engines/yingmusic.py` | YingMusic Infer |
 | `engines/mock_engine.py` | Offline/CI |
-| `engines/voice_gender.py` | male/female |
+| `engines/voice_gender.py` | optional male/female |
 
 ## Design goals
 
-1. Dateien reinlegen, ein Befehl — fertig
-2. `MUSIC_INPUT` / `MUSIC_OUTPUT` Konvention
-3. Kostenlos & lokal
-4. Mock-Engine für Tests/CI
-5. Engines austauschbar
+1. Dateien reinlegen, ein Befehl — fertig  
+2. Surgical Lyric-Edit **und** Cover-Mix-Qualität, lokal & automatisiert  
+3. `MUSIC_INPUT` / `MUSIC_OUTPUT` Konvention  
+4. Kostenlos & lokal (kein Cloud-RVC nötig)  
+5. Mock-Engine für Tests/CI  

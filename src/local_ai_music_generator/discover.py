@@ -37,6 +37,11 @@ class JobSettings:
     max_seconds: float | None = None
     nfe_step: int | None = None
     mode: CoverMode = "auto"
+    polish: bool = True
+    vocal_gain: float = 1.06
+    instrumental_gain: float = 0.9
+    reverb_mix: float | None = None
+    demucs_model: str = "htdemucs_ft"
     extra: dict[str, Any] | None = None
 
 
@@ -81,6 +86,26 @@ class InputJob:
     @property
     def mode(self) -> CoverMode:
         return self.settings.mode
+
+    @property
+    def polish(self) -> bool:
+        return self.settings.polish
+
+    @property
+    def vocal_gain(self) -> float:
+        return self.settings.vocal_gain
+
+    @property
+    def instrumental_gain(self) -> float:
+        return self.settings.instrumental_gain
+
+    @property
+    def reverb_mix(self) -> float | None:
+        return self.settings.reverb_mix
+
+    @property
+    def demucs_model(self) -> str:
+        return self.settings.demucs_model
 
 
 class InputDiscoveryError(ValueError):
@@ -208,6 +233,23 @@ def load_settings(
         raise InputDiscoveryError("mode muss auto|surgical|full sein")
     mode: CoverMode = mode_raw  # type: ignore[assignment]
 
+    polish = bool(raw.get("polish", True))
+    vocal_gain = float(raw.get("vocal_gain", 1.06))
+    instrumental_gain = float(raw.get("instrumental_gain", 0.9))
+    if vocal_gain <= 0 or instrumental_gain <= 0:
+        raise InputDiscoveryError("vocal_gain / instrumental_gain müssen > 0 sein")
+
+    reverb_raw = raw.get("reverb_mix", None)
+    reverb_mix: float | None
+    if reverb_raw is None or reverb_raw == "" or reverb_raw == "auto":
+        reverb_mix = None
+    else:
+        reverb_mix = float(reverb_raw)
+        if not 0.0 <= reverb_mix <= 0.45:
+            raise InputDiscoveryError("reverb_mix muss zwischen 0 und 0.45 liegen (oder auto)")
+
+    demucs_model = str(raw.get("demucs_model", "htdemucs_ft")).strip() or "htdemucs_ft"
+
     known = {
         "voice",
         "output_name",
@@ -217,6 +259,11 @@ def load_settings(
         "max_seconds",
         "nfe_step",
         "mode",
+        "polish",
+        "vocal_gain",
+        "instrumental_gain",
+        "reverb_mix",
+        "demucs_model",
     }
     extra = {k: v for k, v in raw.items() if k not in known}
 
@@ -229,6 +276,11 @@ def load_settings(
         max_seconds=max_seconds,
         nfe_step=nfe_step,
         mode=mode,
+        polish=polish,
+        vocal_gain=vocal_gain,
+        instrumental_gain=instrumental_gain,
+        reverb_mix=reverb_mix,
+        demucs_model=demucs_model,
         extra=extra or None,
     )
 

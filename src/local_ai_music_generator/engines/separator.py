@@ -42,7 +42,8 @@ class SimpleHpssSeparator:
 class DemucsSeparator:
     name = "demucs"
 
-    def __init__(self, model: str = "htdemucs") -> None:
+    def __init__(self, model: str = "htdemucs_ft") -> None:
+        # htdemucs_ft = fine-tuned, closer to UVR/cover-pipeline quality
         self.model = model
 
     def separate(self, audio: np.ndarray, sample_rate: int, work_dir: Path) -> SeparationResult:
@@ -56,7 +57,12 @@ class DemucsSeparator:
             ) from exc
 
         work_dir.mkdir(parents=True, exist_ok=True)
-        model = get_model(self.model)
+        try:
+            model = get_model(self.model)
+        except Exception:
+            # Fallback if ft weights missing / download fails
+            model = get_model("htdemucs")
+            self.model = "htdemucs"
         model.eval()
         target_sr = int(getattr(model, "samplerate", 44100))
 
@@ -102,12 +108,12 @@ class DemucsSeparator:
         )
 
 
-def get_separator(prefer_demucs: bool = True):
+def get_separator(prefer_demucs: bool = True, demucs_model: str = "htdemucs_ft"):
     if prefer_demucs:
         try:
             import demucs  # noqa: F401
 
-            return DemucsSeparator()
+            return DemucsSeparator(model=demucs_model)
         except ImportError:
             pass
     return SimpleHpssSeparator()

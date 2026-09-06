@@ -196,6 +196,11 @@ def _run_from_music_input(*, voice: str | None, engine: str) -> None:
             max_seconds=job.max_seconds,
             nfe_step=job.nfe_step,
             mode=job.mode,
+            polish=job.polish,
+            vocal_gain=job.vocal_gain,
+            instrumental_gain=job.instrumental_gain,
+            reverb_mix=job.reverb_mix,
+            demucs_model=job.demucs_model,
             keep_work_files=True,
         )
         try:
