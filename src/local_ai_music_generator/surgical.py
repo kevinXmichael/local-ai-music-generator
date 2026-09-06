@@ -41,15 +41,26 @@ def _strip_parens(text: str) -> str:
 _WS_COLLAPSE = re.compile(r"\s+")
 
 
-def _token_close(a: str, b: str) -> bool:
+def _token_close(a: str, b: str, *, fuzzy: bool = True) -> bool:
     """Exact or near match so ASR slips like 'mess'/'miss' still hit."""
     if a == b:
+        return True
+    if not fuzzy:
+        return False
+    # Common lyric ASR slips for this project
+    aliases = {
+        "mess": {"miss", "mass", "mes", "mas"},
+        "hot": {"hut", "hod"},
+    }
+    if b in aliases and a in aliases[b]:
+        return True
+    if a in aliases and b in aliases[a]:
         return True
     if len(a) < 3 or len(b) < 3:
         return False
     if abs(len(a) - len(b)) > 2:
         return False
-    return difflib.SequenceMatcher(a=a, b=b).ratio() >= 0.8
+    return difflib.SequenceMatcher(a=a, b=b).ratio() >= 0.78
 
 
 def synthesis_pair(edit: PhraseEdit) -> tuple[str, str]:
@@ -114,12 +125,23 @@ def find_hits_with_whisper(
     console.print("[bold]ASR[/bold] faster-whisper (sucht geänderte Stellen im Original)…")
     # small + no VAD: intro/chorus words are less often dropped
     model = WhisperModel("small", device="cpu", compute_type="int8")
+    # Build a short prompt from edit cores so late choruses stay on-vocab
+    prompt_bits: list[str] = []
+    for edit in edits[:6]:
+        ref_t, _tgt = synthesis_pair(edit)
+        if ref_t and ref_t not in prompt_bits:
+            prompt_bits.append(ref_t)
+    initial_prompt = ". ".join(prompt_bits[:4]) if prompt_bits else None
+
     segments, _info = model.transcribe(
         str(vocals_wav),
         word_timestamps=True,
         language="en",
         vad_filter=False,
-        condition_on_previous_text=False,
+        condition_on_previous_text=True,
+        initial_prompt=initial_prompt,
+        beam_size=5,
+        best_of=5,
     )
 
     words: list[tuple[str, float, float]] = []
@@ -147,19 +169,46 @@ def find_hits_with_whisper(
 
     hits: list[TimedHit] = []
     for needle, edit, ref_text, target_text in unique:
-        hits.extend(
-            _find_needle(words, needle, edit, ref_text=ref_text, target_text=target_text)
+        exact = _find_needle(
+            words,
+            needle,
+            edit,
+            ref_text=ref_text,
+            target_text=target_text,
+            fuzzy=False,
         )
+        fuzzy = _find_needle(
+            words,
+            needle,
+            edit,
+            ref_text=ref_text,
+            target_text=target_text,
+            fuzzy=True,
+        )
+        hits.extend(exact)
+        # Only add fuzzy hits that don't overlap an exact hit
+        for fh in fuzzy:
+            if any(abs(fh.start - eh.start) < 0.35 for eh in exact):
+                continue
+            hits.extend([fh])
 
     hits.sort(key=lambda h: h.start)
     merged: list[TimedHit] = []
     for hit in hits:
+        # Drop ASR ghosts (too short) and runaway windows (ad-lib false positives)
+        dur = hit.end - hit.start
+        if dur < 0.28 or dur > 3.5:
+            continue
         # Any overlapping window = one splice (avoid double foreign voice)
         if merged and hit.start <= merged[-1].end + 0.2:
             prev = merged[-1]
+            merged_end = max(prev.end, hit.end)
+            if merged_end - prev.start > 3.5:
+                merged.append(hit)
+                continue
             merged[-1] = TimedHit(
                 prev.start,
-                max(prev.end, hit.end),
+                merged_end,
                 prev.edit,
                 prev.ref_text,
                 prev.target_text,
@@ -176,6 +225,7 @@ def _find_needle(
     *,
     ref_text: str,
     target_text: str,
+    fuzzy: bool = True,
 ) -> list[TimedHit]:
     hits: list[TimedHit] = []
     n = len(needle)
@@ -183,7 +233,7 @@ def _find_needle(
         return hits
     for i in range(len(words) - n + 1):
         window = [words[i + k][0] for k in range(n)]
-        if all(_token_close(window[k], needle[k]) for k in range(n)):
+        if all(_token_close(window[k], needle[k], fuzzy=fuzzy) for k in range(n)):
             start = words[i][1]
             end = words[i + n - 1][2]
             # Pull in leading context words that belong to the synth phrase
@@ -195,7 +245,7 @@ def _find_needle(
                 prefix = [words[j + k][0] for k in range(i - j)]
                 want = lead[: i - j]
                 if prefix and all(
-                    _token_close(prefix[k], want[k]) for k in range(len(prefix))
+                    _token_close(prefix[k], want[k], fuzzy=fuzzy) for k in range(len(prefix))
                 ):
                     start = words[j][1]
             hits.append(
